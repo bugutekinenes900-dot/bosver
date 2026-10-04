@@ -34,6 +34,14 @@ Ankara’da belediye otopark API’si yok; orada yalnızca OSM kayıtları göst
 
 `parking.db` ve sunucu logları git’e girmez.
 
+## GitHub
+
+Push ve pull request’te Actions `CI` işi sözdizimini kontrol eder ve sunucunun `/api/tiers` ile ayağa kalktığını dener. Lisans: MIT.
+
+## GitHub
+
+Push ve pull request’te Actions `CI` işi sözdizimini kontrol eder ve sunucunun `/api/tiers` ile ayağa kalktığını dener. Lisans: MIT.
+
 ## `anar/`
 
 Aynı depoda ayrı bir sohbet arayüzü taslağı duruyor; BoŞvEr sunucusundan bağımsızdır.

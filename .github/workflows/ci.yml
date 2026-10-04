@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Syntax check
+        run: |
+          node --check server.js
+          node --check db.js
+          node --check auth.js
+          node --check osm.js
+          node --check ispark.js
+          node --check izmir.js
+          node --check pricing.js
+          node --check hours.js
+          node --check public/app.js
+      - name: Server boot
+        run: |
+          node server.js > /tmp/bosver.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:3000/api/tiers >/dev/null; then
+              kill "$pid"
+              wait "$pid" || true
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Sunucu ayağa kalkmadı"
+          cat /tmp/bosver.log
+          kill "$pid" || true
+          exit 1
