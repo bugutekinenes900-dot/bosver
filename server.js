@@ -510,10 +510,18 @@ function listenUrls(port) {
   return [...new Set(urls)];
 }
 
-app.listen(PORT, "0.0.0.0", () => {
-  const urls = listenUrls(PORT);
-  console.log(`BoŞvEr hazır — bu adresten aç:`);
-  for (const url of urls) console.log(`  ${url}`);
-  ispark.warmTariffs();
-  izmir.warmUp();
-});
+if (require.main === module) {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`BoŞvEr hazır — tarayıcıda bunu aç (ünlem olmaz):`);
+    console.log(`  http://localhost:${PORT}`);
+    const urls = listenUrls(PORT);
+    if (urls.length) {
+      console.log("Telefon / aynı ağ:");
+      for (const url of urls) console.log(`  ${url}`);
+    }
+    ispark.warmTariffs();
+    izmir.warmUp();
+  });
+}
+
+module.exports = app;

@@ -3,7 +3,10 @@ const Database = require("better-sqlite3");
 
 const CACHE_MS = 30 * 60 * 1000;
 
-const db = new Database(process.env.PARKING_DB || path.join(__dirname, "parking.db"));
+const dbFile =
+  process.env.PARKING_DB ||
+  (process.env.VERCEL ? path.join("/tmp", "parking.db") : path.join(__dirname, "parking.db"));
+const db = new Database(dbFile);
 db.pragma("journal_mode = WAL");
 
 db.exec(`

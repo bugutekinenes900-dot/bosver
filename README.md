@@ -6,7 +6,7 @@ Adres: [github.com/bugutekinenes900-dot/bosver](https://github.com/bugutekinenes
 
 ## Çalıştırma
 
-Node.js kurulu olsun. Windows’ta `baslat.bat` dosyasına çift tıkla. Sunucu `0.0.0.0` üzerinde dinler; tarayıcı **bilgisayarının yerel IP adresini** açar (`localhost` değil). Aynı Wi‑Fi’deki telefondan da o adresi yazabilirsin.
+Node.js kurulu olsun. Windows’ta `baslat.bat` dosyasına çift tıkla; tarayıcı **http://localhost:3000** açar. Chrome bu adresi güvenli sayar (ünlem olmaz). Aynı Wi‑Fi’deki telefon için konsoldaki `http://192.168.x.x:3000` adresini kullan; o HTTP olduğu için telefonda “Güvenli değil” yazabilir.
 
 ```bash
 npm install
@@ -34,9 +34,15 @@ Ankara’da belediye otopark API’si yok; orada yalnızca OSM kayıtları göst
 
 `parking.db` ve sunucu logları git’e girmez.
 
-## GitHub
+## Kalıcı adres (Vercel, kart yok)
 
-Push ve pull request’te Actions `CI` işi sözdizimini kontrol eder ve sunucunun `/api/tiers` ile ayağa kalktığını dener. Lisans: MIT.
+Render’ın sunucu planı kart istiyor. Bu uygulama Express olduğu için ücretsiz Hobby planı olan Vercel kullanılır.
+
+1. https://vercel.com/signup adresinden GitHub ile gir. Kart istense bile ekleme; Hobby yeterli.
+2. Add New, Project, `bosver` reposu. Kök dizin proje kökü olsun, `anar` değil.
+3. Deploy. Adres `https://....vercel.app` olur ve bilgisayar kapalıyken de açıktır.
+
+Harita verisi İSPARK, İzmir ve OSM’den gelir. Üyelik ve favori kayıtları bu ücretsiz planda kalıcı disk olmadığı için silinebilir. Üyelik ödemesi hâlâ demo, para çekilmez.
 
 ## GitHub
 
