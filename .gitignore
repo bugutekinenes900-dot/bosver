@@ -1,0 +1,8 @@
+node_modules/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+server.err.log
+server.out.log
+.DS_Store

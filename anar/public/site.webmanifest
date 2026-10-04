@@ -1,0 +1,24 @@
+{
+  "name": "Anar - Yapay Zeka Sohbet Asistanı",
+  "short_name": "Anar",
+  "description": "Anar, Türkçe konuşan yapay zeka sohbet asistanı. Soru sorun, metin yazdırın, kod üretin.",
+  "lang": "tr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f9fa",
+  "theme_color": "#f8f9fa",
+  "icons": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

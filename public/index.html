@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BoŞvEr — Boş otopark bul</title>
+  <meta name="description" content="BoŞvEr ile haritada boş otopark bulun ve Google Haritalar ile yol tarifi alın.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            secondary: "#2b5bb5",
+            "on-primary": "#ffffff",
+            "on-surface": "#1b1b21",
+            "secondary-container": "#759efd",
+            error: "#ba1a1a",
+            outline: "#767683",
+            "on-surface-variant": "#454652",
+            background: "#fbf8ff",
+            surface: "#fbf8ff",
+            "surface-variant": "#e4e1ea",
+            "surface-container-low": "#f5f2fb",
+            "surface-container": "#efecf5",
+            "surface-container-high": "#eae7ef",
+            "surface-container-highest": "#e4e1ea",
+            "outline-variant": "#c6c5d4",
+            "on-background": "#1b1b21",
+            "primary-container": "#1a237e",
+            primary: "#000666",
+            tertiary: "#002103",
+            "on-tertiary-container": "#5aa958",
+          },
+          borderRadius: { DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px" },
+          spacing: {
+            xs: "4px", base: "8px", "container-margin": "16px", md: "16px",
+            sm: "12px", xl: "32px", lg: "24px", gutter: "12px",
+          },
+          fontFamily: { "body-lg": ["Inter"], "headline-md": ["Inter"], "headline-lg": ["Inter"], "label-lg": ["Inter"], "label-md": ["Inter"] },
+          fontSize: {
+            "body-lg": ["16px", { lineHeight: "24px" }],
+            "headline-md": ["20px", { lineHeight: "28px", fontWeight: "600" }],
+            "headline-lg": ["24px", { lineHeight: "32px", fontWeight: "600" }],
+            "headline-lg-mobile": ["22px", { lineHeight: "28px", fontWeight: "600" }],
+            "body-md": ["14px", { lineHeight: "20px" }],
+            "label-lg": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600" }],
+            "label-md": ["11px", { lineHeight: "14px", fontWeight: "500" }],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; }
+    .view-hidden { opacity: 0; pointer-events: none; visibility: hidden; }
+    .view-visible { opacity: 1; pointer-events: auto; visibility: visible; }
+    .view-transition { transition: opacity 0.3s ease-in-out; }
+    .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 16px); }
+    #leaflet-map { height: 100%; width: 100%; z-index: 0; }
+    .leaflet-control-zoom { margin-top: 210px !important; }
+  </style>
+</head>
+<body class="bg-background text-on-background h-screen overflow-hidden flex flex-col relative font-body-lg">
+  <header class="bg-surface text-primary fixed top-0 w-full z-50 shadow-sm flex justify-between items-center px-container-margin h-16">
+    <div class="flex items-center gap-2" id="header-logo">
+      <img src="/logo.svg" alt="BoŞvEr" class="h-9 w-9" width="36" height="36">
+      <h1 class="font-headline-md text-headline-md font-bold text-[#1a237e]" id="header-title">BoŞvEr</h1>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="hidden items-center gap-1 rounded-full bg-surface-container-low px-3 py-1.5 font-label-md text-[#1a237e]" id="header-tier" onclick="showView('view-membership')">
+        <span class="material-symbols-outlined text-[16px]">workspace_premium</span>
+        <span id="header-tier-label">Ücretsiz</span>
+      </button>
+      <button class="rounded-full bg-[#1a237e] px-3 py-1.5 font-label-md text-white" id="header-login" onclick="showAuth('login')">Giriş</button>
+      <div class="flex items-center gap-4 hidden" id="header-actions">
+        <button class="rounded-full p-2 text-on-surface-variant" id="settings-btn" onclick="logout()" title="Çıkış yap">
+          <span class="material-symbols-outlined" id="settings-icon">logout</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow pt-16 pb-20 relative overflow-hidden h-full">
+    <div class="absolute inset-0 w-full h-full z-0 view-transition view-visible" id="view-map">
+      <div id="leaflet-map"></div>
+      <div class="absolute inset-0 z-[5] bg-black/40 flex flex-col items-center justify-center view-hidden backdrop-blur-sm" id="map-loading-overlay">
+        <div class="bg-surface p-4 rounded-xl shadow-lg flex flex-col items-center gap-3">
+          <div class="w-8 h-8 border-4 border-[#1a237e] border-t-transparent rounded-full animate-spin"></div>
+          <p class="text-on-surface font-headline-md" id="map-loading-text">Aranıyor...</p>
+        </div>
+      </div>
+      <div class="absolute top-52 left-container-margin right-container-margin z-10 hidden rounded-lg px-3 py-2 text-sm shadow-md" id="gps-message"></div>
+      <button class="absolute bottom-52 right-container-margin z-10 bg-surface text-primary rounded-full w-14 h-14 shadow-md flex items-center justify-center" onclick="simulateLocation(this)" title="Konumum">
+        <span class="material-symbols-outlined text-headline-md">my_location</span>
+      </button>
+      <div class="absolute bottom-24 left-container-margin right-container-margin z-10">
+        <div class="bg-surface rounded-xl shadow-lg p-4 flex justify-between items-center border border-surface-variant cursor-pointer hidden" id="floating-card">
+          <div>
+            <h3 class="font-headline-md text-on-surface" id="floating-card-title">—</h3>
+            <div class="flex items-center gap-1 font-label-lg mt-1">
+              <span class="material-symbols-outlined text-[16px] text-tertiary">check_circle</span>
+              <span class="text-tertiary font-bold" id="floating-card-capacity">—</span>
+              <span class="text-on-surface-variant ml-2" id="floating-card-distance"></span>
+            </div>
+            <div class="flex items-center gap-2 font-label-md mt-1">
+              <span class="font-bold text-[#1a237e]" id="floating-card-price">—</span>
+              <span class="text-on-surface-variant" id="floating-card-source"></span>
+            </div>
+          </div>
+          <button class="bg-[#1a237e] text-on-primary rounded-full w-12 h-12 flex items-center justify-center shadow-md" onclick="event.stopPropagation(); startNavigation()">
+            <span class="material-symbols-outlined">directions</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="absolute top-20 left-container-margin right-container-margin z-10 flex flex-col gap-2 view-transition view-visible" id="map-search-bar">
+      <div class="bg-surface rounded-full shadow-md flex items-center p-3 cursor-pointer" onclick="focusSearch()">
+        <span class="material-symbols-outlined text-on-surface-variant mx-2">search</span>
+        <input class="flex-grow bg-transparent border-none focus:ring-0 font-body-md outline-none" id="map-search-input" onfocus="focusSearch()" oninput="syncSearchInputs('map-search-input')" placeholder="Şehir veya otopark ara..." type="text">
+      </div>
+      <div class="flex gap-2 overflow-x-auto pb-2">
+        <button class="filter-btn bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md" id="filter-indoor" onclick="toggleFilter('indoor')">Kapalı Otopark</button>
+        <button class="filter-btn bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md" id="filter-free" onclick="toggleFilter('free')">Ücretsiz</button>
+        <button class="filter-btn bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md" id="filter-outdoor" onclick="toggleFilter('outdoor')">Açık Otopark</button>
+        <button class="bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md flex items-center gap-1" id="filter-empty" onclick="toggleOnlyEmpty()">
+          Boş yeri olanlar
+          <span class="material-symbols-outlined text-[14px]" id="filter-empty-lock">lock</span>
+        </button>
+        <button class="sort-chip bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md flex items-center gap-1" data-sort="distance" onclick="setSort('distance')">
+          En yakın
+          <span class="material-symbols-outlined text-[14px] sort-lock hidden">lock</span>
+        </button>
+        <button class="sort-chip bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md flex items-center gap-1" data-sort="empty" onclick="setSort('empty')">
+          En boş
+          <span class="material-symbols-outlined text-[14px] sort-lock">lock</span>
+        </button>
+        <button class="sort-chip bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md flex items-center gap-1" data-sort="price" onclick="setSort('price')">
+          En ucuz
+          <span class="material-symbols-outlined text-[14px] sort-lock">lock</span>
+        </button>
+        <button class="export-chip bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md flex items-center gap-1" onclick="exportLots('csv')">
+          CSV
+          <span class="material-symbols-outlined text-[14px]" id="export-csv-lock">lock</span>
+        </button>
+        <button class="export-chip bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md flex items-center gap-1" onclick="exportLots('geojson')">
+          GeoJSON
+          <span class="material-symbols-outlined text-[14px]" id="export-geojson-lock">lock</span>
+        </button>
+        <button class="bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md flex items-center gap-1" id="filter-max-price" onclick="toggleMaxPrice()">
+          ₺150 tavan
+          <span class="material-symbols-outlined text-[14px]" id="filter-max-price-lock">lock</span>
+        </button>
+        <button class="bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md flex items-center gap-1" id="filter-open-now" onclick="toggleOpenNow()">
+          Şu an açık
+          <span class="material-symbols-outlined text-[14px]" id="filter-open-now-lock">lock</span>
+        </button>
+      </div>
+      <div class="hidden rounded-lg bg-[#1a237e] px-3 py-2 font-label-md text-white shadow-md" id="limit-banner"></div>
+    </div>
+
+    <div class="absolute inset-0 w-full h-full z-20 bg-surface/95 backdrop-blur-sm view-transition overflow-y-auto view-hidden" id="view-search">
+      <div class="p-container-margin pt-4 flex flex-col gap-4">
+        <h2 class="font-headline-lg text-on-surface flex items-center gap-2">
+          <span class="material-symbols-outlined cursor-pointer rounded-full p-1" onclick="showView('view-map')">arrow_back</span> Otopark Ara
+        </h2>
+        <div class="bg-surface rounded-full shadow-md flex items-center p-3 border border-outline-variant">
+          <span class="material-symbols-outlined text-on-surface-variant mx-2" onclick="performSearch()">search</span>
+          <input class="flex-grow bg-transparent border-none focus:ring-0 font-body-md outline-none" id="search-input-main" oninput="syncSearchInputs('search-input-main')" onkeypress="if(event.key === 'Enter') performSearch()" placeholder="Şehir veya otopark ara..." type="text">
+          <button class="bg-[#1a237e] text-on-primary rounded-full px-4 py-1 ml-2 font-label-md" onclick="performSearch()">Ara</button>
+        </div>
+        <div class="flex flex-col gap-4" id="search-initial-state">
+          <h3 class="font-label-lg text-on-surface-variant uppercase tracking-wider">Popüler Şehirler</h3>
+          <div class="flex flex-wrap gap-2">
+            <button class="border border-outline-variant rounded-full px-4 py-1.5 font-label-md" onclick="searchCity('Adana')">Adana</button>
+            <button class="border border-outline-variant rounded-full px-4 py-1.5 font-label-md" onclick="searchCity('İstanbul')">İstanbul</button>
+            <button class="border border-outline-variant rounded-full px-4 py-1.5 font-label-md" onclick="searchCity('İzmir')">İzmir</button>
+            <button class="border border-outline-variant rounded-full px-4 py-1.5 font-label-md" onclick="searchCity('Ankara')">Ankara</button>
+          </div>
+        </div>
+        <div class="hidden flex-col gap-4" id="search-results-state">
+          <div class="hidden flex-col items-center py-8 gap-2" id="search-loading">
+            <div class="w-8 h-8 border-4 border-[#1a237e] border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-on-surface-variant">Yükleniyor...</p>
+          </div>
+          <div class="flex flex-col gap-3" id="search-results-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="absolute inset-0 w-full h-full z-20 bg-surface view-transition overflow-y-auto view-hidden" id="view-activity">
+      <div class="max-w-2xl px-container-margin pt-md mx-auto pb-24 flex flex-col gap-4">
+        <h2 class="font-headline-lg">Aktivite Geçmişi</h2>
+
+        <div class="rounded-xl border-2 border-[#1a237e] bg-surface p-container-margin hidden" id="activity-active">
+          <div class="flex items-start justify-between gap-sm">
+            <div class="min-w-0">
+              <p class="font-label-md text-[#1a237e]">ŞU AN PARK HALİNDE</p>
+              <h3 class="font-headline-md truncate" id="activity-active-name">—</h3>
+              <p class="font-body-md text-on-surface-variant" id="activity-active-time">—</p>
+            </div>
+            <button class="bg-[#1a237e] text-white font-label-lg py-2 px-4 rounded shrink-0" onclick="endParkSession()">Çıktım</button>
+          </div>
+          <p class="font-label-md text-on-surface-variant mt-xs">Çıkışta ücret, kaynaktaki gerçek tarifeye göre tahmin edilir.</p>
+        </div>
+
+        <p class="text-on-surface-variant" id="activity-guest">Park geçmişinizi tutmak için giriş yapın. Ücretsiz üyelik yeterli.</p>
+        <p class="text-on-surface-variant hidden" id="activity-empty">Henüz kayıtlı park işlemi yok. Bir otoparkın detayında “Park ettim”e dokunun.</p>
+        <div class="flex flex-col gap-2" id="activity-list"></div>
+      </div>
+    </div>
+
+    <div class="absolute inset-0 w-full h-full z-20 bg-[#F5F5F5] view-transition overflow-y-auto view-hidden" id="view-profile">
+      <div class="p-container-margin max-w-4xl mx-auto w-full flex flex-col gap-lg pb-24 pt-4">
+        <h2 class="font-headline-lg">Profil</h2>
+
+        <section class="bg-surface rounded-lg border border-outline-variant p-container-margin flex flex-col items-center gap-sm text-center hidden" id="profile-guest">
+          <span class="material-symbols-outlined text-5xl text-[#1a237e]">account_circle</span>
+          <h3 class="font-headline-md">Henüz giriş yapmadınız</h3>
+          <p class="font-body-md text-on-surface-variant">Favori otoparklarınızı kaydetmek ve tüm sonuçları görmek için hesap oluşturun.</p>
+          <div class="flex gap-sm mt-xs">
+            <button class="bg-[#1a237e] text-white font-label-lg py-2 px-4 rounded" onclick="showAuth('register')">Kayıt Ol</button>
+            <button class="border border-[#1a237e] text-[#1a237e] font-label-lg py-2 px-4 rounded" onclick="showAuth('login')">Giriş Yap</button>
+          </div>
+        </section>
+
+        <section class="bg-surface rounded-lg border border-outline-variant p-container-margin flex items-center gap-container-margin hidden" id="profile-account">
+          <div class="w-20 h-20 rounded-full bg-[#1a237e] text-white flex items-center justify-center text-2xl font-bold shrink-0" id="profile-avatar">—</div>
+          <div class="flex-grow min-w-0">
+            <h2 class="font-headline-md break-all" id="profile-name">—</h2>
+            <span class="inline-block mt-xs bg-surface-container-low text-[#1a237e] font-label-md px-2 py-1 rounded-full" id="profile-tier-badge">Ücretsiz</span>
+            <p class="font-label-md text-on-surface-variant mt-xs" id="profile-created">—</p>
+          </div>
+          <button class="border border-outline-variant text-on-surface-variant font-label-lg py-2 px-4 rounded shrink-0" onclick="logout()">Çıkış</button>
+        </section>
+
+        <section class="bg-surface rounded-lg border border-outline-variant p-container-margin hidden" id="profile-plan">
+          <h3 class="font-headline-md mb-2">Üyeliğim</h3>
+          <ul class="flex flex-col gap-1 font-body-md text-on-surface-variant" id="profile-plan-perks"></ul>
+          <button class="bg-[#1a237e] text-white font-label-lg py-2 px-4 rounded mt-sm" onclick="showView('view-membership')">Paketleri karşılaştır</button>
+        </section>
+
+        <section class="hidden" id="profile-favorites-section">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-headline-md">Favori Otoparklarım</h3>
+            <span class="font-label-md text-on-surface-variant" id="profile-favorites-count"></span>
+          </div>
+          <div class="flex items-center justify-between gap-sm bg-surface rounded-lg border border-outline-variant p-sm mb-2">
+            <div class="min-w-0">
+              <p class="font-body-md">Boş yer uyarısı</p>
+              <p class="font-label-md text-on-surface-variant" id="favorites-alert-note">Favori İSPARK otoparkında yer açıldığında bildirim gelir.</p>
+            </div>
+            <button class="border border-[#1a237e] text-[#1a237e] font-label-lg py-2 px-4 rounded shrink-0" id="favorites-alert-btn" onclick="toggleFavoriteAlerts()">Aç</button>
+          </div>
+          <div class="flex flex-col gap-2" id="profile-favorites-list"></div>
+        </section>
+
+        <section class="bg-surface rounded-lg border border-outline-variant p-container-margin hidden" id="profile-export-section">
+          <h3 class="font-headline-md mb-1">Dışa Aktarma <span class="font-label-md text-[#1a237e]">Pro</span></h3>
+          <p class="font-body-md text-on-surface-variant mb-sm">Haritada görünen otopark listesini indir.</p>
+          <div class="flex gap-sm">
+            <button class="border border-[#1a237e] text-[#1a237e] font-label-lg py-2 px-4 rounded" onclick="exportLots('csv')">CSV indir</button>
+            <button class="border border-[#1a237e] text-[#1a237e] font-label-lg py-2 px-4 rounded" onclick="exportLots('geojson')">GeoJSON indir</button>
+          </div>
+        </section>
+
+        <section class="bg-surface rounded-lg border border-outline-variant p-container-margin">
+          <h3 class="font-headline-md mb-2">Veri Kaynakları</h3>
+          <div class="flex flex-col gap-2 font-body-md text-on-surface-variant" id="profile-sources"></div>
+        </section>
+      </div>
+    </div>
+
+    <div class="absolute inset-0 w-full h-full z-20 bg-surface view-transition overflow-y-auto view-hidden" id="view-auth">
+      <div class="p-container-margin max-w-md mx-auto w-full flex flex-col gap-md pb-24 pt-4">
+        <h2 class="font-headline-lg flex items-center gap-2">
+          <span class="material-symbols-outlined cursor-pointer rounded-full p-1" onclick="showView('view-profile')">arrow_back</span>
+          <span id="auth-title">Giriş Yap</span>
+        </h2>
+        <p class="font-body-md text-on-surface-variant" id="auth-subtitle">Hesabınıza girin.</p>
+        <form class="flex flex-col gap-sm" id="auth-form" onsubmit="event.preventDefault(); submitAuth()">
+          <label class="font-label-lg text-on-surface-variant" for="auth-email">E-POSTA</label>
+          <input class="rounded-lg border border-outline-variant px-3 py-3 font-body-md" id="auth-email" type="email" autocomplete="email" placeholder="ornek@eposta.com" required>
+          <label class="font-label-lg text-on-surface-variant mt-xs" for="auth-password">PAROLA</label>
+          <input class="rounded-lg border border-outline-variant px-3 py-3 font-body-md" id="auth-password" type="password" autocomplete="current-password" placeholder="En az 6 karakter" required>
+          <p class="hidden rounded-lg bg-red-100 px-3 py-2 font-body-md text-red-800" id="auth-error"></p>
+          <button class="bg-[#1a237e] text-white font-headline-md py-3 rounded-lg mt-sm" id="auth-submit" type="submit">Giriş Yap</button>
+        </form>
+        <button class="font-body-md text-[#1a237e] underline" id="auth-switch" onclick="toggleAuthMode()">Hesabınız yok mu? Kayıt olun</button>
+      </div>
+    </div>
+
+    <div class="absolute inset-0 w-full h-full z-20 bg-[#F5F5F5] view-transition overflow-y-auto view-hidden" id="view-membership">
+      <div class="p-container-margin max-w-5xl mx-auto w-full flex flex-col gap-md pb-24 pt-4">
+        <h2 class="font-headline-lg">Üyelik Paketleri</h2>
+        <p class="font-body-md text-on-surface-variant">Fiyat ve boş yer İSPARK, İzmir Açık Veri ve OpenStreetMap’ten gelir. Plus günlük kullanım, Pro park etmeden önce bütçe ve kapı saati keser.</p>
+        <div class="rounded-lg bg-surface-container-low border border-outline-variant px-3 py-2 font-body-md text-on-surface-variant flex items-start gap-2">
+          <span class="material-symbols-outlined text-[18px] text-[#1a237e]">info</span>
+          <span>Demo sürüm: ödeme altyapısı yok, hiçbir ücret tahsil edilmez. Yükseltme butonu kademeyi anında değiştirir.</span>
+        </div>
+        <div class="grid gap-md md:grid-cols-3 items-start" id="membership-cards"></div>
+      </div>
+    </div>
+
+    <div class="absolute inset-0 w-full h-full z-40 bg-transparent view-transition flex items-end view-hidden" id="view-detail">
+      <div class="absolute inset-0 z-40 bg-black/20" onclick="showView('view-map')"></div>
+      <div class="w-full bg-surface rounded-t-2xl shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.2)] overflow-y-auto pb-40 max-h-[85vh] relative z-50">
+        <div class="w-full flex justify-center py-3 cursor-pointer" onclick="showView('view-map')">
+          <div class="w-12 h-1.5 bg-outline-variant rounded-full"></div>
+        </div>
+        <div class="max-w-2xl px-container-margin mx-auto">
+          <div class="flex justify-between items-start mb-lg">
+            <div class="flex-1 pr-md">
+              <h1 class="font-headline-lg-mobile text-on-surface mb-xs" id="detail-title">Otopark</h1>
+              <p class="font-body-md text-on-surface-variant flex items-center gap-1">
+                <span class="material-symbols-outlined text-[16px]">location_on</span>
+                <span id="detail-address">Konum</span>
+              </p>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="font-headline-md text-[#1a237e] font-bold" id="detail-price">—</div>
+              <div class="font-label-md text-on-surface-variant" id="detail-source">Kaynak: —</div>
+            </div>
+          </div>
+          <p class="font-label-md text-on-surface-variant mb-md hidden" id="detail-price-note"></p>
+          <div class="flex flex-wrap gap-2 mb-lg">
+            <span class="bg-green-100 text-green-800 px-sm py-xs rounded-full font-label-lg hidden" id="detail-available-badge">Müsait</span>
+            <span class="bg-red-100 text-red-800 px-sm py-xs rounded-full font-label-lg hidden" id="detail-full-badge">Dolu</span>
+            <span class="bg-surface-container-low text-on-surface-variant px-sm py-xs rounded-full font-label-lg" id="detail-unknown-badge">Anlık doluluk verisi yok</span>
+            <span class="bg-surface-container-low text-on-surface-variant px-sm py-xs rounded-full font-label-lg hidden" id="detail-live-badge">Canlı veri</span>
+          </div>
+          <div class="grid grid-cols-2 gap-sm mb-lg">
+            <div class="bg-surface-container-low rounded-lg p-md border flex flex-col items-center">
+              <span class="material-symbols-outlined text-secondary text-3xl mb-xs">local_parking</span>
+              <span class="font-headline-md font-bold text-center" id="detail-capacity">—</span>
+              <span class="font-label-md text-on-surface-variant text-center" id="detail-capacity-note">Kapasite</span>
+            </div>
+            <div class="bg-surface-container-low rounded-lg p-md border flex flex-col items-center">
+              <span class="material-symbols-outlined text-secondary text-3xl mb-xs">route</span>
+              <span class="font-headline-md font-bold" id="detail-distance">—</span>
+              <span class="font-label-md text-on-surface-variant">Mesafe</span>
+            </div>
+          </div>
+          <div class="mb-lg hidden" id="detail-tariff-section">
+            <h3 class="font-label-lg text-on-surface-variant mb-sm" id="detail-tariff-title">TARİFE</h3>
+            <div class="rounded-lg border border-outline-variant overflow-hidden" id="detail-tariff"></div>
+            <p class="font-label-md text-on-surface-variant mt-xs hidden" id="detail-monthly"></p>
+          </div>
+          <div class="mb-xl">
+            <h3 class="font-label-lg text-on-surface-variant mb-sm">HİZMETLER</h3>
+            <div class="flex flex-wrap gap-2" id="detail-features"></div>
+          </div>
+        </div>
+        <div class="sticky bottom-0 w-full bg-surface border-t p-container-margin flex flex-col gap-sm">
+          <button class="w-full border border-[#1a237e] text-[#1a237e] font-label-lg py-2 rounded-lg flex items-center justify-center gap-2" id="detail-park-btn" onclick="toggleParkSession()">
+            <span class="material-symbols-outlined text-[18px]" id="detail-park-icon">local_parking</span>
+            <span id="detail-park-label">Park ettim</span>
+          </button>
+          <p class="font-label-md text-on-surface-variant text-center hidden" id="detail-park-note"></p>
+          <div class="flex gap-sm">
+          <button class="flex-1 bg-[#1a237e] text-on-primary font-headline-md py-md rounded-lg flex items-center justify-center gap-2" onclick="startNavigation()">
+            <span class="material-symbols-outlined">navigation</span> Navigasyonu Başlat
+          </button>
+          <button class="w-14 h-14 border rounded-lg flex items-center justify-center text-[#1a237e]" id="detail-favorite-btn" onclick="toggleFavorite()" title="Favorilere ekle">
+            <span class="material-symbols-outlined" id="detail-favorite-icon">favorite_border</span>
+          </button>
+          <button class="w-14 h-14 border rounded-lg flex items-center justify-center text-[#1a237e]" onclick="openDirections()" title="Google Haritalar">
+            <span class="material-symbols-outlined">open_in_new</span>
+          </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="absolute inset-0 w-full h-full z-30 bg-background view-transition view-hidden flex flex-col" id="view-navigation">
+      <div class="flex-grow relative flex flex-col items-center justify-center p-container-margin text-center">
+        <div class="bg-primary text-white p-6 rounded-full shadow-xl mb-4">
+          <span class="material-symbols-outlined text-3xl">navigation</span>
+        </div>
+        <h2 class="font-headline-lg mb-2" id="nav-destination">Hedef</h2>
+        <p class="text-on-surface-variant max-w-xs" id="nav-hint">Hedefinize doğru ilerleyin.</p>
+      </div>
+      <div class="p-container-margin bg-surface border-t pb-safe">
+        <button class="w-full bg-error text-white py-4 rounded-xl font-bold" onclick="showView('view-map')">Navigasyonu Bitir</button>
+      </div>
+    </div>
+  </main>
+
+  <nav class="bg-surface fixed bottom-0 w-full z-[60] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-around items-center h-20 pb-safe">
+    <a class="flex flex-col items-center nav-item text-primary" data-target="view-map" href="#" onclick="event.preventDefault(); showView('view-map')">
+      <div class="px-4 py-1 rounded-full mb-1 icon-container bg-secondary-container">
+        <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1">map</span>
+      </div>
+      <span class="font-label-md nav-label font-bold">Harita</span>
+    </a>
+    <a class="flex flex-col items-center nav-item text-on-surface-variant" data-target="view-search" href="#" onclick="event.preventDefault(); showView('view-search')">
+      <div class="px-4 py-1 rounded-full mb-1 icon-container">
+        <span class="material-symbols-outlined">search</span>
+      </div>
+      <span class="font-label-md nav-label">Ara</span>
+    </a>
+    <a class="flex flex-col items-center nav-item text-on-surface-variant" data-target="view-activity" href="#" onclick="event.preventDefault(); showView('view-activity')">
+      <div class="px-4 py-1 rounded-full mb-1 icon-container">
+        <span class="material-symbols-outlined">history</span>
+      </div>
+      <span class="font-label-md nav-label">Aktivite</span>
+    </a>
+    <a class="flex flex-col items-center nav-item text-on-surface-variant" data-target="view-membership" href="#" onclick="event.preventDefault(); showView('view-membership')">
+      <div class="px-4 py-1 rounded-full mb-1 icon-container">
+        <span class="material-symbols-outlined">workspace_premium</span>
+      </div>
+      <span class="font-label-md nav-label">Üyelik</span>
+    </a>
+    <a class="flex flex-col items-center nav-item text-on-surface-variant" data-target="view-profile" href="#" onclick="event.preventDefault(); showView('view-profile')">
+      <div class="px-4 py-1 rounded-full mb-1 icon-container">
+        <span class="material-symbols-outlined">person</span>
+      </div>
+      <span class="font-label-md nav-label">Profil</span>
+    </a>
+  </nav>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
