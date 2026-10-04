@@ -1,3 +1,4 @@
+const os = require("os");
 const path = require("path");
 const express = require("express");
 const { lotsForBbox, lotsForQuery, getLot, MAX_LOTS } = require("./osm");
@@ -497,8 +498,22 @@ app.get(
   }
 );
 
-app.listen(PORT, () => {
-  console.log(`BoŞvEr http://localhost:${PORT}`);
+function listenUrls(port) {
+  const urls = [];
+  for (const nets of Object.values(os.networkInterfaces())) {
+    for (const net of nets || []) {
+      const family = net.family === 4 || net.family === "IPv4";
+      if (family && !net.internal) urls.push(`http://${net.address}:${port}`);
+    }
+  }
+  if (!urls.length) urls.push(`http://127.0.0.1:${port}`);
+  return [...new Set(urls)];
+}
+
+app.listen(PORT, "0.0.0.0", () => {
+  const urls = listenUrls(PORT);
+  console.log(`BoŞvEr hazır — bu adresten aç:`);
+  for (const url of urls) console.log(`  ${url}`);
   ispark.warmTariffs();
   izmir.warmUp();
 });

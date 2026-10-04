@@ -1192,11 +1192,11 @@ function placeUserMarker() {
 function gpsErrorMessage(err) {
   if (!navigator.geolocation) return "Bu tarayıcı konumu desteklemiyor.";
   if (err && err.code === 1) {
-    return "Konum izni reddedildi. Tarayıcıdan izin verin (http://localhost:3000).";
+    return `Konum izni reddedildi. Tarayıcıdan izin verin (${window.location.origin}).`;
   }
   if (err && err.code === 2) return "Konum alınamadı. GPS veya ağ konumunu açın.";
   if (err && err.code === 3) return "Konum zaman aşımına uğradı. Tekrar deneyin.";
-  return "Konum alınamadı. Sayfayı localhost üzerinden açın ve izin verin.";
+  return `Konum alınamadı. Sayfayı ${window.location.origin} üzerinden açın ve izin verin.`;
 }
 
 function requestGps({ onSuccess, onFail, fly = false } = {}) {

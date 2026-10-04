@@ -6,7 +6,7 @@ const { isparkPrice, formatTry, parseAmount } = require("./pricing");
 const LIVE_URL = "https://openapi.izmir.bel.tr/api/ibb/izum/otoparklar";
 const FEE_CSV_URL =
   "https://acikveri.bizizmir.com/dataset/8863674c-c082-4f55-ab1d-dc75219aca4f/resource/8dca3fb5-b7fe-4f16-91af-d8248da59f87/download/otopark-ucretleri.csv";
-const USER_AGENT = "BosverParkingApp/1.0 (localhost; parking-finder)";
+const USER_AGENT = "BosverParkingApp/1.0 (https://github.com/bugutekinenes900-dot/bosver; parking-finder)";
 
 const COVERAGE = { south: 38.15, west: 26.5, north: 38.8, east: 27.6 };
 const LIVE_TTL_MS = 2 * 60 * 1000;

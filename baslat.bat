@@ -25,11 +25,15 @@ if not exist "node_modules" (
 
 echo.
 echo BosvEr baslatiliyor...
-echo Tarayicida acin: http://localhost:3000
+echo Adres sunucu acilinca asagida yazacak (localhost degil, bilgisayarinin IP'si).
 echo Kapatmak icin bu pencereyi kapatin veya Ctrl+C.
 echo.
 
-start "" http://localhost:3000
+for /f "usebackq delims=" %%i in (`node -e "const os=require('os');const p=process.env.PORT||3000;for (const n of Object.values(os.networkInterfaces())) for (const a of n||[]) if ((a.family===4||a.family==='IPv4')&&!a.internal){console.log('http://'+a.address+':'+p);process.exit(0)} console.log('http://127.0.0.1:'+p)"`) do (
+  echo Tarayicida acin: %%i
+  start "" "%%i"
+)
+
 node server.js
 
 echo.

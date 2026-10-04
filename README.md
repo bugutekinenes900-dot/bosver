@@ -6,7 +6,7 @@ Adres: [github.com/bugutekinenes900-dot/bosver](https://github.com/bugutekinenes
 
 ## Çalıştırma
 
-Node.js kurulu olsun. Windows’ta `baslat.bat` dosyasına çift tıkla; tarayıcı **http://localhost:3000** adresini açar.
+Node.js kurulu olsun. Windows’ta `baslat.bat` dosyasına çift tıkla. Sunucu `0.0.0.0` üzerinde dinler; tarayıcı **bilgisayarının yerel IP adresini** açar (`localhost` değil). Aynı Wi‑Fi’deki telefondan da o adresi yazabilirsin.
 
 ```bash
 npm install

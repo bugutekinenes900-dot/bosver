@@ -4,7 +4,7 @@ const { isOpenNow } = require("./hours");
 const ispark = require("./ispark");
 const izmir = require("./izmir");
 
-const USER_AGENT = "BosverParkingApp/1.0 (localhost; parking-finder)";
+const USER_AGENT = "BosverParkingApp/1.0 (https://github.com/bugutekinenes900-dot/bosver; parking-finder)";
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const MAX_BBOX_KM = 30;

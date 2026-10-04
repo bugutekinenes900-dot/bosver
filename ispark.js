@@ -9,7 +9,7 @@ const { isparkPrice, formatTry } = require("./pricing");
 
 const LIST_URL = "https://api.ibb.gov.tr/ispark/Park";
 const DETAIL_URL = "https://api.ibb.gov.tr/ispark/ParkDetay";
-const USER_AGENT = "BosverParkingApp/1.0 (localhost; parking-finder)";
+const USER_AGENT = "BosverParkingApp/1.0 (https://github.com/bugutekinenes900-dot/bosver; parking-finder)";
 
 const LIST_TTL_MS = 2 * 60 * 1000;
 const TARIFF_TTL_MS = 24 * 60 * 60 * 1000;
