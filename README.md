@@ -40,7 +40,7 @@ Render’ın sunucu planı kart istiyor. Bu uygulama Express olduğu için ücre
 
 1. https://vercel.com/signup adresinden GitHub ile gir. Kart istense bile ekleme; Hobby yeterli.
 2. Add New, Project, `bosver` reposu. Kök dizin proje kökü olsun, `anar` değil.
-3. Deploy. Adres `https://....vercel.app` olur ve bilgisayar kapalıyken de açıktır.
+3. Framework Preset **Other** olsun, Output Directory boş kalsın. Deploy. Adres `https://....vercel.app` olur ve bilgisayar kapalıyken de açıktır. Kırmızı deploydan sonra bu düzeltme için Vercel’de **Redeploy** de.
 
 Harita verisi İSPARK, İzmir ve OSM’den gelir. Üyelik ve favori kayıtları bu ücretsiz planda kalıcı disk olmadığı için silinebilir. Üyelik ödemesi hâlâ demo, para çekilmez.
 

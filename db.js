@@ -1,13 +1,31 @@
 const path = require("path");
-const Database = require("better-sqlite3");
+const { DatabaseSync } = require("node:sqlite");
 
 const CACHE_MS = 30 * 60 * 1000;
 
 const dbFile =
   process.env.PARKING_DB ||
   (process.env.VERCEL ? path.join("/tmp", "parking.db") : path.join(__dirname, "parking.db"));
-const db = new Database(dbFile);
-db.pragma("journal_mode = WAL");
+const db = new DatabaseSync(dbFile);
+db.exec("PRAGMA journal_mode = WAL");
+
+function transaction(fn) {
+  return (...args) => {
+    db.exec("BEGIN");
+    try {
+      const result = fn(...args);
+      db.exec("COMMIT");
+      return result;
+    } catch (error) {
+      try {
+        db.exec("ROLLBACK");
+      } catch {
+        /* already rolled back */
+      }
+      throw error;
+    }
+  };
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS osm_lots (
@@ -180,7 +198,7 @@ function foldName(value) {
 
 function saveLots(lots) {
   const now = Date.now();
-  const tx = db.transaction((rows) => {
+  const tx = transaction((rows) => {
     for (const lot of rows) {
       upsertLot.run({
         ...lot,
@@ -263,7 +281,7 @@ const upsertIsparkSync = db.prepare(`
 
 function saveIsparkLots(lots) {
   const now = Date.now();
-  const tx = db.transaction((rows) => {
+  const tx = transaction((rows) => {
     for (const lot of rows) {
       upsertIsparkLot.run({ ...lot, fetched_at: now });
     }
