@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BoŞvEr — Boş otopark bul</title>
   <meta name="description" content="BoŞvEr ile haritada boş otopark bulun ve Google Haritalar ile yol tarifi alın.">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9547556880517148"
+    crossorigin="anonymous"></script>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
@@ -119,6 +121,7 @@
         </button>
       </div>
       <div class="hidden rounded-lg bg-[#1a237e] px-3 py-2 font-label-md text-white shadow-md" id="limit-banner"></div>
+      <div class="hidden rounded-lg bg-surface overflow-hidden shadow min-h-[90px]" id="site-ad"></div>
     </div>
 
     <div class="absolute inset-0 w-full h-full z-20 bg-surface/95 backdrop-blur-sm view-transition overflow-y-auto view-hidden" id="view-search">
@@ -258,8 +261,18 @@
         <p class="font-body-md text-on-surface-variant">Ücretsiz planda 48 saatte 2 arama, Pro ile aynı haritayı açar. 3. ve 4. arama reklamdan sonra, 5. arama Pro ile gelir.</p>
         <div class="rounded-lg bg-surface-container-low border border-outline-variant px-3 py-2 font-body-md text-on-surface-variant flex items-start gap-2">
           <span class="material-symbols-outlined text-[18px] text-[#1a237e]">info</span>
-          <span>Demo sürüm: ödeme altyapısı yok, hiçbir ücret tahsil edilmez. Yükseltme butonu kademeyi anında değiştirir.</span>
+          <span>Pro 30 günlüktür, ₺99. Kart bilgisi bu sitede durmaz; ödeme iyzico sayfasında alınır. Ödeme doğrulanmadan Pro açılmaz.</span>
         </div>
+        <form class="hidden bg-surface border border-outline-variant rounded-xl p-container-margin gap-2" id="pay-form" onsubmit="submitPayment(event)">
+          <h3 class="font-headline-md">Pro satın al</h3>
+          <input class="rounded-lg border border-outline-variant px-3 py-3 font-body-md" id="pay-name" name="name" placeholder="Ad" required>
+          <input class="rounded-lg border border-outline-variant px-3 py-3 font-body-md" id="pay-surname" name="surname" placeholder="Soyad" required>
+          <input class="rounded-lg border border-outline-variant px-3 py-3 font-body-md" id="pay-phone" name="phone" inputmode="tel" placeholder="Telefon (5xx...)" required>
+          <input class="rounded-lg border border-outline-variant px-3 py-3 font-body-md" id="pay-tckn" name="identityNumber" inputmode="numeric" placeholder="T.C. kimlik no" required>
+          <input class="rounded-lg border border-outline-variant px-3 py-3 font-body-md" id="pay-city" name="city" placeholder="Şehir" required>
+          <p class="hidden rounded-lg bg-red-100 px-3 py-2 font-body-md text-red-800" id="pay-error"></p>
+          <button class="bg-[#1a237e] text-white font-label-lg py-3 rounded-lg" type="submit">iyzico ile ₺99 öde</button>
+        </form>
         <div class="grid gap-md md:grid-cols-2 items-start" id="membership-cards"></div>
       </div>
     </div>
