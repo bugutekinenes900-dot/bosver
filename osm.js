@@ -1,3 +1,5 @@
+const fs = require("fs");
+const path = require("path");
 const { saveLots, saveBbox, cachedBboxCovers, lotsInBbox, getCachedLot } = require("./db");
 const { osmPrice, osmCapacity } = require("./pricing");
 const { isOpenNow } = require("./hours");
@@ -11,8 +13,10 @@ const OVERPASS_URLS = [
   "https://lz4.overpass-api.de/api/interpreter",
 ];
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
-const MAX_BBOX_KM = 30;
-const SEARCH_RADIUS_KM = 5;
+const MAX_BBOX_KM = 2500;
+const SEARCH_RADIUS_KM = 18;
+const MAP_SEND_MAX = 3000;
+const TURKEY = { south: 35.8, west: 25.9, north: 42.2, east: 44.9 };
 const OVERPASS_TIMEOUT_MS = 4500;
 const LIVE_TIMEOUT_MS = 2000;
 const MAX_LOTS = 500;
@@ -333,7 +337,7 @@ function applyFilters(lots, { type, free, onlyEmpty, sort, limit, maxPrice, open
   mapped = rankByQuery(mapped, needle);
 
   const total = mapped.length;
-  const max = Math.min(limit || MAX_LOTS, MAX_LOTS);
+  const max = limit || MAX_LOTS;
   if (total <= max) return { lots: mapped, total, limited: false };
   return { lots: rankByQuery(withLiveQuota(mapped, max, sort), needle), total, limited: true };
 }
@@ -396,7 +400,8 @@ async function geocode(q) {
   const url = new URL(NOMINATIM_URL);
   url.searchParams.set("q", q);
   url.searchParams.set("format", "json");
-  url.searchParams.set("limit", "1");
+  url.searchParams.set("limit", "5");
+  url.searchParams.set("countrycodes", "tr");
   const res = await fetch(url, {
     headers: {
       "User-Agent": USER_AGENT,
@@ -407,7 +412,17 @@ async function geocode(q) {
   if (!res.ok) throw new Error(`Nominatim hata: ${res.status}`);
   const results = await res.json();
   if (!results.length) return null;
-  const hit = results[0];
+  const span = (hit) => {
+    const box = hit.boundingbox || [];
+    return Math.max(
+      Math.abs(Number(box[1]) - Number(box[0])) || 99,
+      Math.abs(Number(box[3]) - Number(box[2])) || 99
+    );
+  };
+  const hit = results.find((item) => {
+    const size = span(item);
+    return size >= 0.03 && size <= 0.7;
+  }) || results[0];
   const place = {
     lat: Number(hit.lat),
     lng: Number(hit.lon),
@@ -417,7 +432,75 @@ async function geocode(q) {
   return place;
 }
 
+let turkeyCache = null;
+
+function turkeyLots() {
+  if (turkeyCache) return turkeyCache;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(path.join(__dirname, "data", "tr-parking.json"), "utf8"));
+    turkeyCache = Array.isArray(parsed.lots) ? parsed.lots : [];
+  } catch {
+    turkeyCache = [];
+  }
+  return turkeyCache;
+}
+
+function inTurkey(bbox) {
+  const lat = (bbox.south + bbox.north) / 2;
+  const lng = (bbox.west + bbox.east) / 2;
+  return lat >= TURKEY.south && lat <= TURKEY.north && lng >= TURKEY.west && lng <= TURKEY.east;
+}
+
+function mapLocal(row, origin) {
+  return mapLot(
+    {
+      osm_id: row.id,
+      name: row.n,
+      lat: row.a,
+      lng: row.o,
+      type: row.t === "in" ? "indoor" : "outdoor",
+      fee: row.f === 0 ? "no" : row.f === 1 ? "yes" : null,
+      capacity: row.c || null,
+      address: row.d || "",
+      features: JSON.stringify([row.t === "in" ? "Kapalı" : "Açık"]),
+      charge: null,
+      tags: "{}",
+    },
+    origin
+  );
+}
+
+function localLots(bbox, origin) {
+  return turkeyLots()
+    .filter((row) => row.a >= bbox.south && row.a <= bbox.north && row.o >= bbox.west && row.o <= bbox.east)
+    .map((row) => mapLocal(row, origin));
+}
+
+function spreadLots(lots, max, bbox) {
+  if (lots.length <= max) return lots;
+  const cols = Math.ceil(Math.sqrt(max / 3));
+  const rows = Math.max(1, cols);
+  const latStep = (bbox.north - bbox.south) / rows || 1;
+  const lngStep = (bbox.east - bbox.west) / cols || 1;
+  const cells = new Map();
+  for (const lot of lots) {
+    const row = Math.min(rows - 1, Math.max(0, Math.floor((lot.lat - bbox.south) / latStep)));
+    const col = Math.min(cols - 1, Math.max(0, Math.floor((lot.lng - bbox.west) / lngStep)));
+    const key = `${row}:${col}`;
+    const list = cells.get(key);
+    if (list) {
+      if (list.length < 6) list.push(lot);
+    } else {
+      cells.set(key, [lot]);
+    }
+  }
+  const spread = [];
+  for (const list of cells.values()) spread.push(...list);
+  return spread.slice(0, max);
+}
+
 async function osmLotsForBbox(bbox, origin) {
+  if (turkeyLots().length && inTurkey(bbox)) return localLots(bbox, origin);
   if (!cachedBboxCovers(bbox)) {
     try {
       const fetched = await fetchOverpass(bbox);
@@ -434,20 +517,34 @@ async function osmLotsForBbox(bbox, origin) {
 
 async function lotsForBbox(bbox, options = {}) {
   if (bboxSizeKm(bbox) > MAX_BBOX_KM) {
-    const err = new Error("Haritayı yaklaştırın (zoom 13+)");
+    const err = new Error("Haritayı biraz yaklaştırın");
     err.code = "bbox_too_large";
     throw err;
   }
 
   const { origin } = options;
+  const wide = bboxSizeKm(bbox) > 80;
   const distance = distanceHelper(origin);
-  const [osmLots, isparkLots, izmirLots] = await Promise.all([
-    withTimeout(osmLotsForBbox(bbox, origin), OVERPASS_TIMEOUT_MS, []),
-    withTimeout(ispark.lotsForBbox(bbox, distance), LIVE_TIMEOUT_MS, []),
-    withTimeout(izmir.lotsForBbox(bbox, distance), LIVE_TIMEOUT_MS, []),
-  ]);
+  const osmLots = await osmLotsForBbox(bbox, origin);
+  const [isparkLots, izmirLots] = wide
+    ? [[], []]
+    : await Promise.all([
+        withTimeout(ispark.lotsForBbox(bbox, distance), LIVE_TIMEOUT_MS, []),
+        withTimeout(izmir.lotsForBbox(bbox, distance), LIVE_TIMEOUT_MS, []),
+      ]);
 
-  return applyFilters(dedupe(isparkLots.concat(izmirLots), osmLots), options);
+  const filtered = applyFilters(dedupe(isparkLots.concat(izmirLots), osmLots), {
+    ...options,
+    limit: options.query ? options.limit : 100000,
+  });
+  if (!options.query && filtered.lots.length > MAP_SEND_MAX) {
+    return {
+      lots: spreadLots(filtered.lots, MAP_SEND_MAX, bbox),
+      total: filtered.total,
+      limited: false,
+    };
+  }
+  return filtered;
 }
 
 async function lotsForQuery(q, options = {}) {
