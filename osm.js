@@ -5,11 +5,16 @@ const ispark = require("./ispark");
 const izmir = require("./izmir");
 
 const USER_AGENT = "BosverParkingApp/1.0 (https://github.com/bugutekinenes900-dot/bosver; parking-finder)";
-const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+const OVERPASS_URLS = [
+  "https://overpass.openstreetmap.fr/api/interpreter",
+  "https://overpass.osm.ch/api/interpreter",
+  "https://lz4.overpass-api.de/api/interpreter",
+];
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const MAX_BBOX_KM = 30;
-const SEARCH_RADIUS_KM = 12;
-const OVERPASS_TIMEOUT_MS = 8000;
+const SEARCH_RADIUS_KM = 5;
+const OVERPASS_TIMEOUT_MS = 4500;
+const LIVE_TIMEOUT_MS = 2000;
 const MAX_LOTS = 500;
 const DEDUPE_KM = 0.08;
 
@@ -333,31 +338,61 @@ function applyFilters(lots, { type, free, onlyEmpty, sort, limit, maxPrice, open
   return { lots: rankByQuery(withLiveQuota(mapped, max, sort), needle), total, limited: true };
 }
 
-async function fetchOverpass(bbox) {
-  const query = `[out:json][timeout:8];
-(
-  nwr["amenity"="parking"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
-  nwr["building"="parking"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
-);
-out center tags;`;
-
-  const res = await fetch(OVERPASS_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-      "User-Agent": USER_AGENT,
-    },
-    body: "data=" + encodeURIComponent(query),
-    signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
+function withTimeout(promise, ms, fallback) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      }
+    );
   });
-  if (!res.ok) {
-    throw new Error(`Overpass hata: ${res.status}`);
-  }
-  const data = await res.json();
-  return (data.elements || []).map(elementToLot).filter(Boolean);
 }
 
+async function fetchOverpass(bbox) {
+  const queryBox = bboxSizeKm(bbox) > 10 ? boxAround((bbox.south + bbox.north) / 2, (bbox.west + bbox.east) / 2, 5) : bbox;
+  const box = `${queryBox.south},${queryBox.west},${queryBox.north},${queryBox.east}`;
+  const garages = bboxSizeKm(queryBox) <= 8 ? `\n  nwr["building"="parking"](${box});` : "";
+  const query = `[out:json][timeout:4];
+(
+  nwr["amenity"="parking"](${box});${garages}
+);
+out center tags;`;
+  const body = "data=" + encodeURIComponent(query);
+  let lastError = null;
+  for (const url of OVERPASS_URLS) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "User-Agent": USER_AGENT,
+        },
+        body,
+        signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`Overpass hata: ${res.status}`);
+      const data = await res.json();
+      const lots = (data.elements || []).map(elementToLot).filter(Boolean);
+      if (lots.length) return lots;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  if (lastError) throw lastError;
+  return [];
+}
+
+const geoCache = new Map();
+
 async function geocode(q) {
+  const key = foldTr(q);
+  if (geoCache.has(key)) return geoCache.get(key);
   const url = new URL(NOMINATIM_URL);
   url.searchParams.set("q", q);
   url.searchParams.set("format", "json");
@@ -367,26 +402,31 @@ async function geocode(q) {
       "User-Agent": USER_AGENT,
       Accept: "application/json",
     },
+    signal: AbortSignal.timeout(3500),
   });
   if (!res.ok) throw new Error(`Nominatim hata: ${res.status}`);
   const results = await res.json();
   if (!results.length) return null;
   const hit = results[0];
-  return {
+  const place = {
     lat: Number(hit.lat),
     lng: Number(hit.lon),
     label: hit.display_name,
   };
+  geoCache.set(key, place);
+  return place;
 }
 
 async function osmLotsForBbox(bbox, origin) {
   if (!cachedBboxCovers(bbox)) {
     try {
       const fetched = await fetchOverpass(bbox);
-      saveLots(fetched);
-      saveBbox(bbox);
-    } catch (err) {
-      if (!lotsInBbox(bbox).length) throw err;
+      if (fetched.length) {
+        saveLots(fetched);
+        saveBbox(bbox);
+      }
+    } catch {
+      /* zaman aşımında eldeki kayıtlar döner */
     }
   }
   return lotsInBbox(bbox).map((row) => mapLot(row, origin));
@@ -400,17 +440,23 @@ async function lotsForBbox(bbox, options = {}) {
   }
 
   const { origin } = options;
+  const distance = distanceHelper(origin);
   const [osmLots, isparkLots, izmirLots] = await Promise.all([
-    osmLotsForBbox(bbox, origin),
-    ispark.lotsForBbox(bbox, distanceHelper(origin)).catch(() => []),
-    izmir.lotsForBbox(bbox, distanceHelper(origin)).catch(() => []),
+    withTimeout(osmLotsForBbox(bbox, origin), OVERPASS_TIMEOUT_MS, []),
+    withTimeout(ispark.lotsForBbox(bbox, distance), LIVE_TIMEOUT_MS, []),
+    withTimeout(izmir.lotsForBbox(bbox, distance), LIVE_TIMEOUT_MS, []),
   ]);
 
   return applyFilters(dedupe(isparkLots.concat(izmirLots), osmLots), options);
 }
 
 async function lotsForQuery(q, options = {}) {
-  const place = await geocode(q);
+  let place = null;
+  try {
+    place = await geocode(q);
+  } catch {
+    place = null;
+  }
   if (!place) {
     return { lots: [], total: 0, limited: false, center: null, label: null };
   }
