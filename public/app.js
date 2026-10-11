@@ -359,7 +359,8 @@ function setOverlay(visible, text) {
 async function refreshLots() {
   const seq = ++state.reqSeq;
   const bbox = currentBbox();
-  setOverlay(true, "Otoparklar yükleniyor...");
+  const showSpinner = state.lots.length === 0;
+  if (showSpinner) setOverlay(true, "Otoparklar yükleniyor...");
   try {
     const data = await fetchLotsByBbox();
     if (seq !== state.reqSeq) return;
@@ -381,7 +382,7 @@ async function refreshLots() {
       updateFloatingCard(null);
     }
   } finally {
-    if (seq === state.reqSeq) setOverlay(false, "Aranıyor...");
+    if (seq === state.reqSeq && showSpinner) setOverlay(false, "Aranıyor...");
   }
 }
 
@@ -391,7 +392,7 @@ function onMapMoved() {
   clearTimeout(state.moveTimer);
   state.moveTimer = setTimeout(() => {
     refreshLots();
-  }, 700);
+  }, 900);
 }
 
 async function performSearch() {
@@ -630,22 +631,22 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function fillAdSlot(client) {
-  const slot = el("ad-slot");
-  slot.innerHTML = "";
-  if (!client) {
-    slot.textContent = "Reklam";
+function mountAd(target, client, adSlot) {
+  if (!target) return;
+  target.innerHTML = "";
+  if (!client || !adSlot) {
+    target.textContent = "Reklam";
     return;
   }
   if (!document.querySelector("script[data-bosver-adsense]")) {
     const script = document.createElement("script");
     script.async = true;
-    script.dataset.bosverAdsense = "1";
     script.crossOrigin = "anonymous";
+    script.dataset.bosverAdsense = "1";
     script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(client)}`;
     document.head.appendChild(script);
   }
-  slot.innerHTML = `<ins class="adsbygoogle" style="display:block" data-ad-client="${escapeHtml(client)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+  target.innerHTML = `<ins class="adsbygoogle" style="display:block" data-ad-client="${escapeHtml(client)}" data-ad-slot="${escapeHtml(adSlot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
   try {
     (window.adsbygoogle = window.adsbygoogle || []).push({});
   } catch {
@@ -653,11 +654,33 @@ function fillAdSlot(client) {
   }
 }
 
+async function loadSiteAd() {
+  const box = el("site-ad");
+  if (!box) return;
+  if (state.user?.tier === "pro") {
+    box.classList.add("hidden");
+    box.innerHTML = "";
+    return;
+  }
+  try {
+    const res = await fetch("/api/ads");
+    const ads = await res.json();
+    if (!ads.enabled) {
+      box.classList.add("hidden");
+      return;
+    }
+    box.classList.remove("hidden");
+    mountAd(box, ads.client, ads.slot);
+  } catch {
+    box.classList.add("hidden");
+  }
+}
+
 async function showAdGate(info) {
   const gate = el("ad-gate");
   const countdown = el("ad-countdown");
   gate.classList.remove("hidden");
-  fillAdSlot(info.adsenseClient);
+  mountAd(el("ad-slot"), info.adsenseClient, info.adsenseSlot);
   try {
     await api("/api/quota/ad/start", { method: "POST" });
     let left = Math.ceil((info.waitMs || 8000) / 1000);
@@ -679,24 +702,38 @@ async function showAdGate(info) {
   }
 }
 
-async function upgradeTier(tierKey) {
+function upgradeTier(tierKey) {
   if (!state.user) {
     showAuth("register");
     return;
   }
+  if (tierKey !== "pro") return;
+  const form = el("pay-form");
+  form.classList.remove("hidden");
+  form.classList.add("flex", "flex-col");
+  el("pay-error").classList.add("hidden");
+  form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+async function submitPayment(event) {
+  event.preventDefault();
+  const error = el("pay-error");
+  error.classList.add("hidden");
   try {
-    const data = await api("/api/auth/upgrade", {
+    const data = await api("/api/billing/checkout", {
       method: "POST",
-      body: JSON.stringify({ tier: tierKey }),
+      body: JSON.stringify({
+        name: el("pay-name").value,
+        surname: el("pay-surname").value,
+        phone: el("pay-phone").value,
+        identityNumber: el("pay-tckn").value,
+        city: el("pay-city").value,
+      }),
     });
-    state.user = data.user;
-    await loadFavorites();
-    startFavoriteAlerts();
-    renderSession();
-    renderMembership();
-    refreshLots();
+    window.location.href = data.paymentPageUrl;
   } catch (err) {
-    showGpsMessage(err.message, true);
+    error.textContent = err.message;
+    error.classList.remove("hidden");
   }
 }
 
@@ -719,7 +756,9 @@ function renderMembership() {
         : "";
       const button = isCurrent
         ? '<button class="w-full mt-md rounded-lg border border-outline-variant py-3 font-label-lg text-on-surface-variant" disabled>Mevcut paketiniz</button>'
-        : `<button class="w-full mt-md rounded-lg py-3 font-label-lg ${highlight ? "bg-[#1a237e] text-white" : "border border-[#1a237e] text-[#1a237e]"}" onclick="upgradeTier('${tier.key}')">${state.user ? `${escapeHtml(tier.name)} paketine geç` : "Hesap oluştur"}</button>`;
+        : tier.key === "pro"
+          ? `<button class="w-full mt-md rounded-lg py-3 font-label-lg bg-[#1a237e] text-white" onclick="upgradeTier('pro')">${state.user ? "Pro'yu satın al" : "Hesap oluştur"}</button>`
+          : `<button class="w-full mt-md rounded-lg py-3 font-label-lg border border-[#1a237e] text-[#1a237e]" onclick="showAuth('register')">Hesap oluştur</button>`;
       return `
         <div class="relative bg-surface rounded-xl p-container-margin flex flex-col ${highlight ? "border-2 border-[#1a237e] shadow-lg md:-mt-2" : "border border-outline-variant"}">
           ${badge}
@@ -1139,6 +1178,7 @@ function renderSession() {
   renderFilterLocks();
   renderProfile();
   renderMembership();
+  loadSiteAd();
 }
 
 async function loadSession() {
@@ -1374,6 +1414,10 @@ async function init() {
     if (state.activeSession) renderSessions();
   }, 30000);
   await loadSession();
+  const payment = new URLSearchParams(window.location.search).get("odeme");
+  if (payment === "ok") showGpsMessage("Ödeme alındı. Pro 30 gün açık.", false);
+  if (payment === "hata") showGpsMessage("Ödeme tamamlanmadı. Para çekilmediyse tekrar deneyin.", true);
+  if (payment) history.replaceState({}, "", window.location.pathname);
   loadSources();
   requestGps({
     fly: true,
