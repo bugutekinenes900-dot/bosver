@@ -1,5 +1,5 @@
 const ADANA = { lat: 36.995, lng: 35.324 };
-const MIN_ZOOM = 13;
+const MIN_ZOOM = 5;
 
 const SORT_MODES = [
   { key: "distance", label: "En yakın" },
@@ -121,11 +121,8 @@ function filterParams() {
 
 function fetchBbox() {
   const bbox = currentBbox();
-  const latSpan = bbox.north - bbox.south;
-  const lngSpan = bbox.east - bbox.west;
-  const maxSpan = 0.09;
-  const latPad = Math.min(latSpan * 0.8, Math.max(0, (maxSpan - latSpan) / 2));
-  const lngPad = Math.min(lngSpan * 0.8, Math.max(0, (maxSpan - lngSpan) / 2));
+  const latPad = (bbox.north - bbox.south) * 0.2;
+  const lngPad = (bbox.east - bbox.west) * 0.2;
   return {
     south: bbox.south - latPad,
     north: bbox.north + latPad,
@@ -147,6 +144,7 @@ async function fetchLotsByBbox() {
   if (state.map.getZoom() < MIN_ZOOM) {
     const err = new Error("Otoparkları görmek için haritayı yaklaştırın");
     err.code = "bbox_too_large";
+    err.message = "Haritayı biraz yaklaştırın";
     throw err;
   }
   const params = bboxParams(filterParams());
@@ -314,7 +312,14 @@ function renderSearchResults(lots) {
     notice.onclick = () => showView("view-membership");
     list.appendChild(notice);
   }
-  lots.forEach((lot) => {
+  const shown = lots.slice(0, 40);
+  if (lots.length > shown.length) {
+    const more = document.createElement("p");
+    more.className = "font-body-md text-on-surface-variant px-1";
+    more.textContent = `Listede 40 tane var. Haritada bu aramadaki ${lots.length} otopark duruyor.`;
+    list.appendChild(more);
+  }
+  shown.forEach((lot) => {
     const div = document.createElement("div");
     div.className =
       "bg-surface border border-outline-variant rounded-xl p-4 flex justify-between items-center cursor-pointer hover:bg-surface-container-low shadow-sm";
