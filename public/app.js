@@ -119,8 +119,23 @@ function filterParams() {
   return params;
 }
 
-function bboxParams(params) {
+function fetchBbox() {
   const bbox = currentBbox();
+  const latSpan = bbox.north - bbox.south;
+  const lngSpan = bbox.east - bbox.west;
+  const maxSpan = 0.09;
+  const latPad = Math.min(latSpan * 0.8, Math.max(0, (maxSpan - latSpan) / 2));
+  const lngPad = Math.min(lngSpan * 0.8, Math.max(0, (maxSpan - lngSpan) / 2));
+  return {
+    south: bbox.south - latPad,
+    north: bbox.north + latPad,
+    west: bbox.west - lngPad,
+    east: bbox.east + lngPad,
+  };
+}
+
+function bboxParams(params) {
+  const bbox = fetchBbox();
   params.set("south", String(bbox.south));
   params.set("west", String(bbox.west));
   params.set("north", String(bbox.north));
@@ -358,9 +373,8 @@ function setOverlay(visible, text) {
 
 async function refreshLots() {
   const seq = ++state.reqSeq;
-  const bbox = currentBbox();
-  const showSpinner = state.lots.length === 0;
-  if (showSpinner) setOverlay(true, "Otoparklar yükleniyor...");
+  const bbox = fetchBbox();
+  setOverlay(false);
   try {
     const data = await fetchLotsByBbox();
     if (seq !== state.reqSeq) return;
@@ -374,15 +388,9 @@ async function refreshLots() {
     hideGpsMessage();
   } catch (err) {
     if (seq !== state.reqSeq) return;
-    showGpsMessage(err.message, true);
-    if (err.code === "bbox_too_large") {
-      state.lots = [];
-      applyMeta(null);
-      renderMarkers();
-      updateFloatingCard(null);
+    if (err.code === "bbox_too_large" && !state.lots.length) {
+      showGpsMessage(err.message, true);
     }
-  } finally {
-    if (seq === state.reqSeq && showSpinner) setOverlay(false, "Aranıyor...");
   }
 }
 
@@ -407,7 +415,7 @@ async function performSearch() {
   el("search-loading").classList.remove("hidden");
   el("search-loading").classList.add("flex");
   el("search-results-list").innerHTML = "";
-  setOverlay(true, `${state.query} aranıyor...`);
+  setOverlay(false);
 
   const seq = ++state.reqSeq;
   try {
