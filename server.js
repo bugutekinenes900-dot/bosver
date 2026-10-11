@@ -90,9 +90,7 @@ function tierMeta(req, result, options) {
     maxResults: req.tier.maxResults,
     blockedFeatures: options.blocked,
     upgradeHint: tierLimited
-      ? req.tier.key === "free"
-        ? `${req.tier.name} üyelikte en yakın ${req.tier.maxResults} sonuç gösterilir. Plus ile 200, Pro ile 500 sonuç görün.`
-        : `${req.tier.name} üyelikte en yakın ${req.tier.maxResults} sonuç gösterilir. Pro ile 500 sonuca çıkın.`
+      ? `${req.tier.name} üyelikte en yakın ${req.tier.maxResults} sonuç gösterilir.`
       : null,
   };
 }
@@ -102,7 +100,7 @@ async function resolveLots(req) {
   const q = (req.query.q || "").trim();
   if (q) {
     const result = await lotsForQuery(q, options);
-    return { result, options, payload: { center: result.center, label: result.label } };
+    return { result, options, payload: { center: result.center, label: result.label, bbox: result.bbox } };
   }
   const bbox = bboxFromQuery(req.query);
   if (!bbox) {
@@ -116,9 +114,21 @@ async function resolveLots(req) {
 }
 
 app.get("/api/lots", async (req, res) => {
+  const q = (req.query.q || "").trim();
+  const decision = q ? auth.prepareSearch(req) : null;
+  if (decision && !decision.ok) {
+    res.status(decision.status).json(decision.body);
+    return;
+  }
   try {
     const { result, options, payload } = await resolveLots(req);
-    res.json({ lots: result.lots, ...payload, ...tierMeta(req, result, options) });
+    const saved = decision ? auth.commitSearch(req, res, decision) : null;
+    res.json({
+      lots: result.lots,
+      ...payload,
+      ...tierMeta(req, result, options),
+      quota: q ? auth.publicQuota(req, saved) : undefined,
+    });
   } catch (err) {
     const status =
       err.status || (err.code === "bbox_too_large" ? 400 : 502);
@@ -180,7 +190,25 @@ app.get("/api/sources", (req, res) => {
 });
 
 app.get("/api/tiers", (req, res) => {
-  res.json({ tiers: auth.publicTiers(), current: req.tier.key });
+  res.json({ tiers: auth.publicTiers(), current: req.tier.key, quota: auth.publicQuota(req) });
+});
+
+app.post("/api/quota/ad/start", (req, res) => {
+  const result = auth.beginAd(req, res);
+  if (!result.ok) {
+    res.status(result.status).json(result.body);
+    return;
+  }
+  res.json({ ok: true, waitMs: auth.AD_WAIT_MS });
+});
+
+app.post("/api/quota/ad/finish", (req, res) => {
+  const result = auth.finishAd(req, res);
+  if (!result.ok) {
+    res.status(result.status).json(result.body);
+    return;
+  }
+  res.json({ ok: true });
 });
 
 app.post("/api/auth/register", (req, res) => {
@@ -237,7 +265,7 @@ app.post("/api/auth/upgrade", auth.requireAuth, (req, res) => {
 
 const favoritesGate = auth.requireFeature(
   "favoriteLimit",
-  "Favori kaydetmek için Plus üyelik gerekiyor"
+  "Favori kaydetmek için Pro üyelik gerekiyor"
 );
 
 app.get("/api/favorites", auth.requireAuth, favoritesGate, (req, res) => {

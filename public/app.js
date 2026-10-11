@@ -36,6 +36,8 @@ const state = {
   alertCheckedAt: null,
   watch: new Map(),
   watchPrev: new Map(),
+  loadedBbox: null,
+  quota: null,
 };
 
 const ALERT_POLL_MS = 2 * 60 * 1000;
@@ -44,13 +46,13 @@ const ALERT_STORAGE_KEY = "bosver_alerts";
 function limits() {
   return (
     state.user?.limits || {
-      maxResults: 20,
-      favoriteLimit: 0,
-      liveEmptyFilter: false,
-      advancedSort: false,
-      export: false,
-      maxPriceFilter: false,
-      openNowFilter: false,
+      maxResults: 500,
+      favoriteLimit: 500,
+      liveEmptyFilter: true,
+      advancedSort: true,
+      export: true,
+      maxPriceFilter: true,
+      openNowFilter: true,
     }
   );
 }
@@ -80,6 +82,16 @@ function showGpsMessage(text, isError) {
 
 function hideGpsMessage() {
   el("gps-message")?.classList.add("hidden");
+}
+
+function bboxInside(inner, outer) {
+  if (!inner || !outer) return false;
+  return (
+    inner.south >= outer.south &&
+    inner.north <= outer.north &&
+    inner.west >= outer.west &&
+    inner.east <= outer.east
+  );
 }
 
 function currentBbox() {
@@ -125,7 +137,13 @@ async function fetchLotsByBbox() {
   const params = bboxParams(filterParams());
   const res = await fetch(`/api/lots?${params}`);
   const data = await res.json();
-  if (!res.ok) throw Object.assign(new Error(data.message || "Yüklenemedi"), { code: data.error });
+  if (!res.ok) {
+    throw Object.assign(new Error(data.message || "Yüklenemedi"), {
+      code: data.error,
+      waitMs: data.waitMs,
+      adsenseClient: data.adsenseClient,
+    });
+  }
   return data;
 }
 
@@ -134,18 +152,18 @@ async function fetchLotsByQuery(q) {
   params.set("q", q);
   const res = await fetch(`/api/lots?${params}`);
   const data = await res.json();
-  if (!res.ok) throw Object.assign(new Error(data.message || "Arama başarısız"), { code: data.error });
+  if (!res.ok) {
+    throw Object.assign(new Error(data.message || "Arama başarısız"), {
+      code: data.error,
+      waitMs: data.waitMs,
+      adsenseClient: data.adsenseClient,
+    });
+  }
   return data;
 }
 
-function pinHtml(lot) {
-  return `
-    <div class="flex flex-col items-center">
-      <div class="w-10 h-10 bg-primary text-white rounded-full flex items-center justify-center border-2 border-white shadow-lg font-bold">P</div>
-      <div class="bg-white px-2 py-0.5 rounded shadow text-[11px] whitespace-nowrap mt-1 max-w-[140px] overflow-hidden text-ellipsis">
-        ${escapeHtml(lot.name)}
-      </div>
-    </div>`;
+function pinHtml() {
+  return `<div class="w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center border-2 border-white shadow font-bold">P</div>`;
 }
 
 function renderMarkers() {
@@ -154,9 +172,9 @@ function renderMarkers() {
   const markers = state.lots.map((lot) => {
     const icon = L.divIcon({
       className: "bg-transparent border-0",
-      html: pinHtml(lot),
-      iconSize: [160, 72],
-      iconAnchor: [80, 36],
+      html: pinHtml(),
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
     });
     const marker = L.marker([lot.lat, lot.lng], { icon });
     marker.on("click", () => {
@@ -263,11 +281,21 @@ function renderSearchResults(lots) {
       '<p class="text-on-surface-variant text-center py-8">Bu bölgede otopark bulunamadı.</p>';
     return;
   }
+  if (state.quota && !state.quota.unlimited) {
+    const note = document.createElement("p");
+    note.className = "font-body-md text-on-surface-variant px-1";
+    const left = state.quota.directLeft;
+    note.textContent =
+      left > 0
+        ? `Bu 48 saatte reklamsız ${left} arama hakkın kaldı.`
+        : "Reklamsız hak bitti. Sonraki aramalar reklam veya Pro ister.";
+    list.appendChild(note);
+  }
   if (state.lastMeta?.limited) {
     const notice = document.createElement("div");
     notice.className =
       "rounded-xl bg-[#1a237e] text-white px-4 py-3 font-body-md cursor-pointer";
-    notice.textContent = `${state.lastMeta.total} sonuçtan ${state.lastMeta.maxResults} tanesi listelendi. Tümü için Plus'a geçin.`;
+    notice.textContent = `${state.lastMeta.total} sonuçtan ${state.lastMeta.maxResults} tanesi listelendi. Tümü için Pro'ya geçin.`;
     notice.onclick = () => showView("view-membership");
     list.appendChild(notice);
   }
@@ -308,7 +336,7 @@ function applyMeta(meta) {
     return;
   }
   banner.classList.remove("hidden");
-  banner.textContent = `${meta.total} otoparktan ${meta.maxResults} tanesi gösteriliyor — Plus ile tümünü görün.`;
+  banner.textContent = `${meta.total} otoparktan ${meta.maxResults} tanesi gösteriliyor — Pro ile tümünü görün.`;
   banner.onclick = () => showView("view-membership");
   banner.classList.add("cursor-pointer");
 }
@@ -330,10 +358,12 @@ function setOverlay(visible, text) {
 
 async function refreshLots() {
   const seq = ++state.reqSeq;
+  const bbox = currentBbox();
   setOverlay(true, "Otoparklar yükleniyor...");
   try {
     const data = await fetchLotsByBbox();
     if (seq !== state.reqSeq) return;
+    state.loadedBbox = bbox;
     state.lots = data.lots || [];
     applyMeta(data);
     renderMarkers();
@@ -357,10 +387,11 @@ async function refreshLots() {
 
 function onMapMoved() {
   if (state.skipMoveFetch) return;
+  if (bboxInside(currentBbox(), state.loadedBbox)) return;
   clearTimeout(state.moveTimer);
   state.moveTimer = setTimeout(() => {
     refreshLots();
-  }, 400);
+  }, 700);
 }
 
 async function performSearch() {
@@ -379,8 +410,17 @@ async function performSearch() {
 
   const seq = ++state.reqSeq;
   try {
-    const data = await fetchLotsByQuery(state.query);
+    let data;
+    try {
+      data = await fetchLotsByQuery(state.query);
+    } catch (err) {
+      if (err.code !== "ad_required") throw err;
+      await showAdGate(err);
+      data = await fetchLotsByQuery(state.query);
+    }
     if (seq !== state.reqSeq) return;
+    state.quota = data.quota || null;
+    if (data.bbox) state.loadedBbox = data.bbox;
     state.lots = data.lots || [];
     applyMeta(data);
     if (data.center) {
@@ -399,6 +439,7 @@ async function performSearch() {
     if (seq !== state.reqSeq) return;
     el("search-loading").classList.add("hidden");
     el("search-loading").classList.remove("flex");
+    if (err.code === "pro_required") showView("view-membership");
     el("search-results-list").innerHTML = `<p class="text-error text-center py-8">${escapeHtml(err.message)}</p>`;
   } finally {
     if (seq === state.reqSeq) setOverlay(false);
@@ -503,7 +544,11 @@ async function api(path, options = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw Object.assign(new Error(data.message || "İşlem başarısız"), { code: data.error });
+    throw Object.assign(new Error(data.message || "İşlem başarısız"), {
+      code: data.error,
+      waitMs: data.waitMs,
+      adsenseClient: data.adsenseClient,
+    });
   }
   return data;
 }
@@ -579,6 +624,59 @@ async function logout() {
   renderSession();
   showView("view-map");
   refreshLots();
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function fillAdSlot(client) {
+  const slot = el("ad-slot");
+  slot.innerHTML = "";
+  if (!client) {
+    slot.textContent = "Reklam";
+    return;
+  }
+  if (!document.querySelector("script[data-bosver-adsense]")) {
+    const script = document.createElement("script");
+    script.async = true;
+    script.dataset.bosverAdsense = "1";
+    script.crossOrigin = "anonymous";
+    script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(client)}`;
+    document.head.appendChild(script);
+  }
+  slot.innerHTML = `<ins class="adsbygoogle" style="display:block" data-ad-client="${escapeHtml(client)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+  try {
+    (window.adsbygoogle = window.adsbygoogle || []).push({});
+  } catch {
+    /* reklam ağı henüz hazır değil */
+  }
+}
+
+async function showAdGate(info) {
+  const gate = el("ad-gate");
+  const countdown = el("ad-countdown");
+  gate.classList.remove("hidden");
+  fillAdSlot(info.adsenseClient);
+  try {
+    await api("/api/quota/ad/start", { method: "POST" });
+    let left = Math.ceil((info.waitMs || 8000) / 1000);
+    while (left > 0) {
+      countdown.textContent = `${left} sn`;
+      await wait(1000);
+      left -= 1;
+    }
+    countdown.textContent = "Arama açılıyor...";
+    try {
+      await api("/api/quota/ad/finish", { method: "POST" });
+    } catch (err) {
+      if (err.code !== "too_soon") throw err;
+      await wait(err.waitMs || 1000);
+      await api("/api/quota/ad/finish", { method: "POST" });
+    }
+  } finally {
+    gate.classList.add("hidden");
+  }
 }
 
 async function upgradeTier(tierKey) {
@@ -836,7 +934,7 @@ function renderFavoriteButton(lot) {
     ? saved
       ? "Favorilerden çıkar"
       : "Favorilere ekle"
-    : "Favoriler Plus üyelikte açılır";
+    : "Favoriler Pro üyelikte açılır";
 }
 
 async function toggleFavorite() {

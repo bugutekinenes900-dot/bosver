@@ -149,6 +149,20 @@ if (migrated) {
   db.exec("DELETE FROM bbox_cache");
 }
 
+addColumn("users", "quota_start", "INTEGER");
+addColumn("users", "quota_used", "INTEGER");
+
+db.exec(`CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+const OSM_CACHE_REV = "2";
+const osmRev = db.prepare("SELECT value FROM app_meta WHERE key = 'osm_rev'").get();
+if (!osmRev || osmRev.value !== OSM_CACHE_REV) {
+  db.exec("DELETE FROM bbox_cache");
+  db.prepare(
+    `INSERT INTO app_meta (key, value) VALUES ('osm_rev', ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  ).run(OSM_CACHE_REV);
+}
+
 const upsertLot = db.prepare(`
   INSERT INTO osm_lots (osm_id, name, name_norm, lat, lng, type, fee, capacity, address, features, charge, tags, fetched_at)
   VALUES (@osm_id, @name, @name_norm, @lat, @lng, @type, @fee, @capacity, @address, @features, @charge, @tags, @fetched_at)
@@ -316,6 +330,9 @@ const selectUserById = db.prepare(`SELECT * FROM users WHERE id = ?`);
 const updateUserTier = db.prepare(`
   UPDATE users SET tier = @tier, tier_changed_at = @tier_changed_at WHERE id = @id
 `);
+const updateUserQuota = db.prepare(`
+  UPDATE users SET quota_start = @quota_start, quota_used = @quota_used WHERE id = @id
+`);
 
 const insertSession = db.prepare(`
   INSERT INTO sessions (token, user_id, created_at, expires_at)
@@ -394,6 +411,7 @@ module.exports = {
   selectUserByEmail,
   selectUserById,
   updateUserTier,
+  updateUserQuota,
   insertSession,
   selectSession,
   deleteSession,

@@ -213,12 +213,7 @@ async function lotsForBbox(bbox, distanceFor) {
     return 0;
   });
 
-  await ensureTariffs(withDistance.map((item) => item.row));
-
-  return withDistance.map((item) => {
-    const fresh = getIsparkLot(item.row.park_id) || item.row;
-    return mapLot(fresh, item.distanceKm);
-  });
+  return withDistance.map((item) => mapLot(item.row, item.distanceKm));
 }
 
 async function lotById(parkId, distanceFor) {

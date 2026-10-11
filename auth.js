@@ -4,6 +4,7 @@ const {
   selectUserByEmail,
   selectUserById,
   updateUserTier,
+  updateUserQuota,
   insertSession,
   selectSession,
   deleteSession,
@@ -11,52 +12,40 @@ const {
 } = require("./db");
 
 const COOKIE_NAME = "bosver_session";
+const QUOTA_COOKIE = "bosver_quota";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const KEY_LENGTH = 64;
+const QUOTA_WINDOW_MS = 48 * 60 * 60 * 1000;
+const QUOTA_DIRECT = 2;
+const QUOTA_WITH_AD = 4;
+const AD_WAIT_MS = 8000;
+const QUOTA_SECRET = process.env.QUOTA_SECRET || "bosver-quota-v1";
+
+const MAP_FEATURES = {
+  maxResults: 500,
+  favoriteLimit: 500,
+  liveEmptyFilter: true,
+  advancedSort: true,
+  export: true,
+  maxPriceFilter: true,
+  openNowFilter: true,
+};
 
 const TIERS = {
   free: {
     key: "free",
     name: "Ücretsiz",
     priceLabel: "₺0",
-    periodLabel: "sonsuza kadar",
-    maxResults: 20,
-    favoriteLimit: 0,
-    liveEmptyFilter: false,
-    advancedSort: false,
-    export: false,
-    maxPriceFilter: false,
-    openNowFilter: false,
+    periodLabel: "48 saatte 2 arama",
+    ...MAP_FEATURES,
     recommended: false,
-    hook: "Haritayı dene, sonra Plus'a geç.",
+    hook: "İki arama Pro ile aynı haritayı açar.",
     perks: [
-      "Haritada gerçek otoparkları gör",
-      "En yakın 20 sonucu incele",
-      "Kapalı / açık / ücretsiz süz",
-      "Google ile yol tarifi al",
-      "Park ettim / çıktım: süre ve tahmini ücret",
-    ],
-  },
-  plus: {
-    key: "plus",
-    name: "Plus",
-    priceLabel: "₺49",
-    periodLabel: "ay",
-    maxResults: 200,
-    favoriteLimit: 50,
-    liveEmptyFilter: true,
-    advancedSort: false,
-    export: false,
-    maxPriceFilter: false,
-    openNowFilter: false,
-    recommended: true,
-    hook: "Günlük kullanım için en mantıklısı.",
-    perks: [
-      "Ücretsiz'deki 20 yerine 200 otopark",
-      "50 favori — ev, iş, AVM ayrı",
-      "Sadece boş yeri olanları göster (İSPARK canlı)",
-      "İBB anlık doluluk: kaç yer boş",
-      "Boş yer uyarısı: favorinde yer açılınca bildirim (İSPARK / İzmir canlı)",
+      "48 saatte 2 arama, Pro ile aynı süzgeçler",
+      "Canlı boş yer, fiyat tavanı, açık olanlar",
+      "En boş / en ucuz sıralama ve 500 sonuç",
+      "3. ve 4. arama reklam bitince açılır",
+      "5. arama için Pro gerekir",
     ],
   },
   pro: {
@@ -64,24 +53,16 @@ const TIERS = {
     name: "Pro",
     priceLabel: "₺99",
     periodLabel: "ay",
-    maxResults: 500,
-    favoriteLimit: 500,
-    liveEmptyFilter: true,
-    advancedSort: true,
-    export: true,
-    maxPriceFilter: true,
-    openNowFilter: true,
-    recommended: false,
-    hook: "Park etmeden fiyatı ve kapı saatini kes.",
+    ...MAP_FEATURES,
+    recommended: true,
+    hook: "Arama sınırı ve reklam yok.",
     perks: [
-      "Plus'taki her şey — 200 değil, 500 otopark",
-      "500 favori: tüm güzergâhların tek listede",
-      "500 favorinin tamamı için boş yer uyarısı",
+      "Ücretsizdeki haritanın tamamı, hak sayacı yok",
+      "500 favori ve boş yer uyarısı",
       "İSPARK canlı boş yer + sadece müsait olanlar",
-      "En boş / en ucuz sıralama: doluya veya pahalıya sapma",
-      "₺150 tavan: bütçeni aşan tarifeyi gizle",
-      "Şu an açık olanlar: kapalı kapıya gitme",
-      "CSV / GeoJSON: ofise veya navigasyona aktar",
+      "En boş / en ucuz sıralama",
+      "₺150 tavan ve şu an açık olanlar",
+      "CSV / GeoJSON dışa aktarma",
     ],
   },
 };
@@ -89,6 +70,7 @@ const TIERS = {
 const GUEST_TIER = TIERS.free;
 
 function tierFor(key) {
+  if (key === "plus" || key === "pro") return TIERS.pro;
   return TIERS[key] || GUEST_TIER;
 }
 
@@ -190,7 +172,14 @@ function attachUser(req, res, next) {
   const token = parseCookies(req.headers.cookie)[COOKIE_NAME];
   const row = token ? selectSession.get(token, Date.now()) : null;
   req.user = row
-    ? { id: row.id, email: row.email, tier: row.tier, createdAt: row.created_at }
+    ? {
+        id: row.id,
+        email: row.email,
+        tier: row.tier,
+        createdAt: row.created_at,
+        quota_start: row.quota_start || 0,
+        quota_used: row.quota_used || 0,
+      }
     : null;
   req.tier = tierFor(req.user?.tier);
   next();
@@ -244,6 +233,162 @@ function setTier(userId, tierKey) {
   return selectUserById.get(userId);
 }
 
+function signQuota(payload) {
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const sig = crypto.createHmac("sha256", QUOTA_SECRET).update(body).digest("base64url");
+  return `${body}.${sig}`;
+}
+
+function unsignQuota(token) {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 2) return null;
+  const [body, sig] = parts;
+  const expected = crypto.createHmac("sha256", QUOTA_SECRET).update(body).digest("base64url");
+  const left = Buffer.from(sig);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) return null;
+  try {
+    return JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function freshQuota(now = Date.now()) {
+  return { start: now, used: 0, credit: 0, adStarted: 0 };
+}
+
+function activeQuota(raw, now = Date.now()) {
+  if (!raw || !Number.isFinite(Number(raw.start))) return null;
+  const start = Number(raw.start);
+  if (now - start >= QUOTA_WINDOW_MS) return null;
+  return {
+    start,
+    used: Math.max(0, Number(raw.used) || 0),
+    credit: Math.max(0, Number(raw.credit) || 0),
+    adStarted: Math.max(0, Number(raw.adStarted) || 0),
+  };
+}
+
+function loadQuota(req) {
+  const now = Date.now();
+  const cookieRaw = unsignQuota(parseCookies(req.headers.cookie)[QUOTA_COOKIE]);
+  const cookieQuota = activeQuota(cookieRaw, now);
+  const dbQuota = req.user
+    ? activeQuota({ start: req.user.quota_start, used: req.user.quota_used, credit: 0, adStarted: 0 }, now)
+    : null;
+  if (!cookieQuota && !dbQuota) return null;
+  if (!cookieQuota) return dbQuota;
+  if (!dbQuota) return cookieQuota;
+  const base = cookieQuota.used >= dbQuota.used ? cookieQuota : { ...dbQuota, credit: cookieQuota.credit, adStarted: cookieQuota.adStarted };
+  base.credit = Math.max(cookieQuota.credit, base.credit || 0);
+  base.adStarted = cookieQuota.adStarted || 0;
+  return base;
+}
+
+function saveQuota(req, res, quota) {
+  res.cookie(QUOTA_COOKIE, signQuota(quota), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: Boolean(process.env.VERCEL),
+    maxAge: QUOTA_WINDOW_MS,
+    path: "/",
+  });
+  if (!req.user) return;
+  updateUserQuota.run({ id: req.user.id, quota_start: quota.start, quota_used: quota.used });
+  req.user.quota_start = quota.start;
+  req.user.quota_used = quota.used;
+}
+
+function adsenseClient() {
+  return process.env.ADSENSE_CLIENT || null;
+}
+
+function prepareSearch(req) {
+  if (req.tier.key === "pro") return { ok: true, skip: true };
+  const quota = loadQuota(req) || freshQuota();
+  if (quota.used < QUOTA_DIRECT) return { ok: true, quota, consumeCredit: false };
+  if (quota.used < QUOTA_WITH_AD) {
+    if (quota.credit > 0) return { ok: true, quota, consumeCredit: true };
+    return {
+      ok: false,
+      status: 403,
+      body: {
+        error: "ad_required",
+        message: "Bu arama için reklamın bitmesi gerekiyor",
+        waitMs: AD_WAIT_MS,
+        adsenseClient: adsenseClient(),
+      },
+    };
+  }
+  return {
+    ok: false,
+    status: 403,
+    body: {
+      error: "pro_required",
+      message: "48 saatte 4 aramadan fazlası Pro üyelik ister",
+    },
+  };
+}
+
+function commitSearch(req, res, decision) {
+  if (!decision || decision.skip) return null;
+  const quota = {
+    ...decision.quota,
+    used: decision.quota.used + 1,
+    credit: decision.consumeCredit ? 0 : decision.quota.credit,
+    adStarted: 0,
+  };
+  saveQuota(req, res, quota);
+  return quota;
+}
+
+function beginAd(req, res) {
+  if (req.tier.key === "pro") {
+    return { ok: false, status: 400, body: { error: "not_needed", message: "Pro üyelikte reklam yok" } };
+  }
+  const quota = loadQuota(req) || freshQuota();
+  if (quota.used < QUOTA_DIRECT || quota.used >= QUOTA_WITH_AD) {
+    return { ok: false, status: 400, body: { error: "ad_not_available", message: "Şu an reklamla arama açılamaz" } };
+  }
+  quota.adStarted = Date.now();
+  saveQuota(req, res, quota);
+  return { ok: true };
+}
+
+function finishAd(req, res) {
+  if (req.tier.key === "pro") {
+    return { ok: false, status: 400, body: { error: "not_needed", message: "Pro üyelikte reklam yok" } };
+  }
+  const quota = loadQuota(req);
+  if (!quota?.adStarted) {
+    return { ok: false, status: 400, body: { error: "ad_not_started", message: "Reklam başlatılmadı" } };
+  }
+  const waited = Date.now() - quota.adStarted;
+  if (waited < AD_WAIT_MS) {
+    return {
+      ok: false,
+      status: 400,
+      body: { error: "too_soon", message: "Reklam henüz bitmedi", waitMs: AD_WAIT_MS - waited },
+    };
+  }
+  quota.credit = 1;
+  quota.adStarted = 0;
+  saveQuota(req, res, quota);
+  return { ok: true };
+}
+
+function publicQuota(req, saved) {
+  if (req.tier.key === "pro") return { unlimited: true };
+  const quota = saved || loadQuota(req) || freshQuota();
+  return {
+    unlimited: false,
+    used: quota.used,
+    directLeft: Math.max(0, QUOTA_DIRECT - quota.used),
+    resetsAt: quota.start + QUOTA_WINDOW_MS,
+  };
+}
+
 module.exports = {
   COOKIE_NAME,
   TIERS,
@@ -263,6 +408,12 @@ module.exports = {
   requireAuth,
   requireFeature,
   setTier,
+  prepareSearch,
+  commitSearch,
+  beginAd,
+  finishAd,
+  publicQuota,
+  AD_WAIT_MS,
   selectUserByEmail,
   selectUserById,
 };

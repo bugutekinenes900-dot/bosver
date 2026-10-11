@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "build:css": "tailwindcss -c tailwind.config.js -i public/tailwind.src.css -o public/tailwind.css --minify",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -16,5 +17,8 @@
   "type": "commonjs",
   "dependencies": {
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
   }
 }

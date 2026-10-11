@@ -18,9 +18,9 @@ npm start
 - Harita (Leaflet), pin kümeleme, GPS, Google yol tarifi
 - OSM isimleri: generic “Otopark” yerine sokak / konumdan anlamlı ad
 - İSPARK anlık boş yer ve tarife; İzmir canlı doluluk + İZELMAN ücret listesi
-- Üyelik (Ücretsiz / Plus / Pro, demo — ödeme yok)
+- Üyelik (Ücretsiz / Pro, demo — ödeme yok). Ücretsiz: 48 saatte 2 arama, harita Pro ile aynı
 - Park ettim / çıktım, tahmini ücret
-- Plus+: favori otoparkta yer açılınca bildirim
+- Favori otoparkta yer açılınca bildirim
 
 Ankara’da belediye otopark API’si yok; orada yalnızca OSM kayıtları gösterilir.
 

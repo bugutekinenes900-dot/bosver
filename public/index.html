@@ -6,57 +6,11 @@
   <title>BoŞvEr — Boş otopark bul</title>
   <meta name="description" content="BoŞvEr ile haritada boş otopark bulun ve Google Haritalar ile yol tarifi alın.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            secondary: "#2b5bb5",
-            "on-primary": "#ffffff",
-            "on-surface": "#1b1b21",
-            "secondary-container": "#759efd",
-            error: "#ba1a1a",
-            outline: "#767683",
-            "on-surface-variant": "#454652",
-            background: "#fbf8ff",
-            surface: "#fbf8ff",
-            "surface-variant": "#e4e1ea",
-            "surface-container-low": "#f5f2fb",
-            "surface-container": "#efecf5",
-            "surface-container-high": "#eae7ef",
-            "surface-container-highest": "#e4e1ea",
-            "outline-variant": "#c6c5d4",
-            "on-background": "#1b1b21",
-            "primary-container": "#1a237e",
-            primary: "#000666",
-            tertiary: "#002103",
-            "on-tertiary-container": "#5aa958",
-          },
-          borderRadius: { DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px" },
-          spacing: {
-            xs: "4px", base: "8px", "container-margin": "16px", md: "16px",
-            sm: "12px", xl: "32px", lg: "24px", gutter: "12px",
-          },
-          fontFamily: { "body-lg": ["Inter"], "headline-md": ["Inter"], "headline-lg": ["Inter"], "label-lg": ["Inter"], "label-md": ["Inter"] },
-          fontSize: {
-            "body-lg": ["16px", { lineHeight: "24px" }],
-            "headline-md": ["20px", { lineHeight: "28px", fontWeight: "600" }],
-            "headline-lg": ["24px", { lineHeight: "32px", fontWeight: "600" }],
-            "headline-lg-mobile": ["22px", { lineHeight: "28px", fontWeight: "600" }],
-            "body-md": ["14px", { lineHeight: "20px" }],
-            "label-lg": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600" }],
-            "label-md": ["11px", { lineHeight: "14px", fontWeight: "500" }],
-          },
-        },
-      },
-    };
-  </script>
   <style>
     body { font-family: Inter, system-ui, sans-serif; }
     .view-hidden { opacity: 0; pointer-events: none; visibility: hidden; }
@@ -66,6 +20,7 @@
     #leaflet-map { height: 100%; width: 100%; z-index: 0; }
     .leaflet-control-zoom { margin-top: 210px !important; }
   </style>
+  <link rel="stylesheet" href="/tailwind.css">
 </head>
 <body class="bg-background text-on-background h-screen overflow-hidden flex flex-col relative font-body-lg">
   <header class="bg-surface text-primary fixed top-0 w-full z-50 shadow-sm flex justify-between items-center px-container-margin h-16">
@@ -300,12 +255,12 @@
     <div class="absolute inset-0 w-full h-full z-20 bg-[#F5F5F5] view-transition overflow-y-auto view-hidden" id="view-membership">
       <div class="p-container-margin max-w-5xl mx-auto w-full flex flex-col gap-md pb-24 pt-4">
         <h2 class="font-headline-lg">Üyelik Paketleri</h2>
-        <p class="font-body-md text-on-surface-variant">Fiyat ve boş yer İSPARK, İzmir Açık Veri ve OpenStreetMap’ten gelir. Plus günlük kullanım, Pro park etmeden önce bütçe ve kapı saati keser.</p>
+        <p class="font-body-md text-on-surface-variant">Ücretsiz planda 48 saatte 2 arama, Pro ile aynı haritayı açar. 3. ve 4. arama reklamdan sonra, 5. arama Pro ile gelir.</p>
         <div class="rounded-lg bg-surface-container-low border border-outline-variant px-3 py-2 font-body-md text-on-surface-variant flex items-start gap-2">
           <span class="material-symbols-outlined text-[18px] text-[#1a237e]">info</span>
           <span>Demo sürüm: ödeme altyapısı yok, hiçbir ücret tahsil edilmez. Yükseltme butonu kademeyi anında değiştirir.</span>
         </div>
-        <div class="grid gap-md md:grid-cols-3 items-start" id="membership-cards"></div>
+        <div class="grid gap-md md:grid-cols-2 items-start" id="membership-cards"></div>
       </div>
     </div>
 
@@ -425,6 +380,15 @@
       <span class="font-label-md nav-label">Profil</span>
     </a>
   </nav>
+
+  <div class="hidden fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" id="ad-gate">
+    <div class="bg-surface rounded-xl p-container-margin max-w-md w-full flex flex-col gap-md shadow-lg">
+      <h2 class="font-headline-md text-on-surface">Bu arama için reklam</h2>
+      <p class="font-body-md text-on-surface-variant">Süre bitince arama açılır. Bu pencere erken kapanmaz.</p>
+      <div class="min-h-[120px] rounded-lg bg-surface-container flex items-center justify-center font-label-lg text-on-surface-variant" id="ad-slot">Reklam</div>
+      <p class="font-headline-md text-[#1a237e] text-center" id="ad-countdown">8 sn</p>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>

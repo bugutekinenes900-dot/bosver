@@ -8,7 +8,8 @@ const USER_AGENT = "BosverParkingApp/1.0 (https://github.com/bugutekinenes900-do
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const MAX_BBOX_KM = 30;
-const SEARCH_RADIUS_KM = 5;
+const SEARCH_RADIUS_KM = 12;
+const OVERPASS_TIMEOUT_MS = 8000;
 const MAX_LOTS = 500;
 const DEDUPE_KM = 0.08;
 
@@ -57,6 +58,7 @@ function distanceHelper(origin) {
 }
 
 function indoorFromTags(tags) {
+  if (tags.building === "parking") return true;
   const parking = (tags.parking || "").toLowerCase();
   return ["underground", "multi-storey", "multistorey", "rooftop", "garage"].includes(
     parking
@@ -152,7 +154,8 @@ function rankByQuery(lots, needle) {
 
 function elementToLot(el) {
   const tags = el.tags || {};
-  if (tags.amenity !== "parking") return null;
+  if (tags.amenity === "parking_space") return null;
+  if (tags.amenity !== "parking" && tags.building !== "parking") return null;
   const lat = el.lat ?? el.center?.lat;
   const lng = el.lon ?? el.center?.lon;
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
@@ -164,7 +167,10 @@ function elementToLot(el) {
       .filter(Boolean)
       .join(" ")
   );
-  const name = displayName(tags);
+  let name = displayName(tags);
+  if (tags.building === "parking" && (name === "Otopark" || isGenericName(name))) {
+    name = "Kapalı otopark";
+  }
 
   return {
     osm_id: `${el.type}_${el.id}`,
@@ -328,9 +334,10 @@ function applyFilters(lots, { type, free, onlyEmpty, sort, limit, maxPrice, open
 }
 
 async function fetchOverpass(bbox) {
-  const query = `[out:json][timeout:25];
+  const query = `[out:json][timeout:8];
 (
   nwr["amenity"="parking"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
+  nwr["building"="parking"](${bbox.south},${bbox.west},${bbox.north},${bbox.east});
 );
 out center tags;`;
 
@@ -341,6 +348,7 @@ out center tags;`;
       "User-Agent": USER_AGENT,
     },
     body: "data=" + encodeURIComponent(query),
+    signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`Overpass hata: ${res.status}`);
@@ -373,9 +381,13 @@ async function geocode(q) {
 
 async function osmLotsForBbox(bbox, origin) {
   if (!cachedBboxCovers(bbox)) {
-    const fetched = await fetchOverpass(bbox);
-    saveLots(fetched);
-    saveBbox(bbox);
+    try {
+      const fetched = await fetchOverpass(bbox);
+      saveLots(fetched);
+      saveBbox(bbox);
+    } catch (err) {
+      if (!lotsInBbox(bbox).length) throw err;
+    }
   }
   return lotsInBbox(bbox).map((row) => mapLot(row, origin));
 }
