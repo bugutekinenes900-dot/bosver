@@ -698,10 +698,7 @@ function wait(ms) {
 function mountAd(target, client, adSlot) {
   if (!target) return;
   target.innerHTML = "";
-  if (!client || !adSlot) {
-    target.textContent = "Reklam";
-    return;
-  }
+  if (!client || !adSlot) return;
   if (!document.querySelector("script[data-bosver-adsense]")) {
     const script = document.createElement("script");
     script.async = true;
@@ -710,7 +707,7 @@ function mountAd(target, client, adSlot) {
     script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(client)}`;
     document.head.appendChild(script);
   }
-  target.innerHTML = `<ins class="adsbygoogle" style="display:block" data-ad-client="${escapeHtml(client)}" data-ad-slot="${escapeHtml(adSlot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+  target.innerHTML = `<ins class="adsbygoogle" style="display:block" data-ad-client="${escapeHtml(client)}" data-ad-slot="${escapeHtml(adSlot)}" data-ad-format="horizontal" data-full-width-responsive="true"></ins>`;
   try {
     (window.adsbygoogle = window.adsbygoogle || []).push({});
   } catch {
@@ -724,6 +721,7 @@ async function loadSiteAd() {
   if (state.user?.tier === "pro") {
     box.classList.add("hidden");
     box.innerHTML = "";
+    document.body.classList.remove("has-ad");
     return;
   }
   try {
@@ -731,9 +729,11 @@ async function loadSiteAd() {
     const ads = await res.json();
     if (!ads.enabled) {
       box.classList.add("hidden");
+      document.body.classList.remove("has-ad");
       return;
     }
     box.classList.remove("hidden");
+    document.body.classList.add("has-ad");
     mountAd(box, ads.client, ads.slot);
   } catch {
     box.classList.add("hidden");
@@ -744,7 +744,6 @@ async function showAdGate(info) {
   const gate = el("ad-gate");
   const countdown = el("ad-countdown");
   gate.classList.remove("hidden");
-  mountAd(el("ad-slot"), info.adsenseClient, info.adsenseSlot);
   try {
     await api("/api/quota/ad/start", { method: "POST" });
     let left = Math.ceil((info.waitMs || 8000) / 1000);
