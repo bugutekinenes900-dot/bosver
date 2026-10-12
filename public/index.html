@@ -21,10 +21,12 @@
     .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 16px); }
     #leaflet-map { height: 100%; width: 100%; z-index: 0; }
     .leaflet-control-zoom { margin-top: 210px !important; }
+    body.has-ad #map-sheet { bottom: 10.5rem; }
+    body.has-ad #locate-btn { bottom: 16rem; }
   </style>
   <link rel="stylesheet" href="/tailwind.css">
 </head>
-<body class="bg-background text-on-background h-screen overflow-hidden flex flex-col relative font-body-lg">
+<body class="has-ad bg-background text-on-background h-screen overflow-hidden flex flex-col relative font-body-lg">
   <header class="bg-surface text-primary fixed top-0 w-full z-50 shadow-sm flex justify-between items-center px-container-margin h-16">
     <div class="flex items-center gap-2" id="header-logo">
       <img src="/logo.svg" alt="BoŞvEr" class="h-9 w-9" width="36" height="36">
@@ -54,10 +56,10 @@
         </div>
       </div>
       <div class="absolute top-52 left-container-margin right-container-margin z-10 hidden rounded-lg px-3 py-2 text-sm shadow-md" id="gps-message"></div>
-      <button class="absolute bottom-52 right-container-margin z-10 bg-surface text-primary rounded-full w-14 h-14 shadow-md flex items-center justify-center" onclick="simulateLocation(this)" title="Konumum">
+      <button class="absolute bottom-52 right-container-margin z-10 bg-surface text-primary rounded-full w-14 h-14 shadow-md flex items-center justify-center" id="locate-btn" onclick="simulateLocation(this)" title="Konumum">
         <span class="material-symbols-outlined text-headline-md">my_location</span>
       </button>
-      <div class="absolute bottom-24 left-container-margin right-container-margin z-10">
+      <div class="absolute bottom-24 left-container-margin right-container-margin z-10" id="map-sheet">
         <div class="bg-surface rounded-xl shadow-lg p-4 flex justify-between items-center border border-surface-variant cursor-pointer hidden" id="floating-card">
           <div>
             <h3 class="font-headline-md text-on-surface" id="floating-card-title">—</h3>
@@ -121,7 +123,6 @@
         </button>
       </div>
       <div class="hidden rounded-lg bg-[#1a237e] px-3 py-2 font-label-md text-white shadow-md" id="limit-banner"></div>
-      <div class="hidden rounded-lg bg-surface overflow-hidden shadow min-h-[90px]" id="site-ad"></div>
     </div>
 
     <div class="absolute inset-0 w-full h-full z-20 bg-surface/95 backdrop-blur-sm view-transition overflow-y-auto view-hidden" id="view-search">
@@ -361,6 +362,12 @@
     </div>
   </main>
 
+  <div class="fixed bottom-20 left-3 right-3 z-[55] h-[90px] rounded-2xl bg-surface shadow-lg border border-outline-variant overflow-hidden" id="site-ad">
+    <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-9547556880517148" data-ad-slot="5865371002" data-ad-format="auto" data-full-width-responsive="true"></ins>
+  </div>
+  <script>
+    (adsbygoogle = window.adsbygoogle || []).push({});
+  </script>
   <nav class="bg-surface fixed bottom-0 w-full z-[60] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-around items-center h-20 pb-safe">
     <a class="flex flex-col items-center nav-item text-primary" data-target="view-map" href="#" onclick="event.preventDefault(); showView('view-map')">
       <div class="px-4 py-1 rounded-full mb-1 icon-container bg-secondary-container">
@@ -398,13 +405,13 @@
     <div class="bg-surface rounded-xl p-container-margin max-w-md w-full flex flex-col gap-md shadow-lg">
       <h2 class="font-headline-md text-on-surface">Bu arama için reklam</h2>
       <p class="font-body-md text-on-surface-variant">Süre bitince arama açılır. Bu pencere erken kapanmaz.</p>
-      <div class="min-h-[120px] rounded-lg bg-surface-container flex items-center justify-center font-label-lg text-on-surface-variant" id="ad-slot">Reklam</div>
+      <div class="min-h-[90px] rounded-lg overflow-hidden" id="ad-slot"></div>
       <p class="font-headline-md text-[#1a237e] text-center" id="ad-countdown">8 sn</p>
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="/app.js?v=8"></script>
+  <script src="/app.js?v=10"></script>
 </body>
 </html>

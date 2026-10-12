@@ -729,14 +729,14 @@ async function loadSiteAd() {
   try {
     const res = await fetch("/api/ads");
     const ads = await res.json();
-    if (!ads.enabled) {
-      box.classList.add("hidden");
-      return;
-    }
+    const client = ads.client || "ca-pub-9547556880517148";
+    const slot = ads.slot || "5865371002";
     box.classList.remove("hidden");
-    mountAd(box, ads.client, ads.slot);
+    document.body.classList.add("has-ad");
+    if (!box.querySelector("ins.adsbygoogle")) mountAd(box, client, slot);
   } catch {
-    box.classList.add("hidden");
+    box.classList.remove("hidden");
+    document.body.classList.add("has-ad");
   }
 }
 
