@@ -257,7 +257,9 @@ function showDetailView(lot) {
   el("detail-capacity").textContent = lot.capacityLabel;
   el("detail-capacity-note").textContent = lot.liveOccupancy
     ? `Anlık boş yer (${lot.sourceLabel})`
-    : "Kapasite (OSM kaydı)";
+    : lot.estimatedOccupancy
+      ? "Tahmini doluluk"
+      : "Kapasite (OSM kaydı)";
   el("detail-distance").textContent = lot.distanceLabel || "—";
   el("detail-price").textContent = lot.priceLabel;
   el("detail-source").textContent = `Kaynak: ${lot.sourceLabel}`;
@@ -270,7 +272,9 @@ function showDetailView(lot) {
 
   el("detail-available-badge").classList.toggle("hidden", lot.empty !== true);
   el("detail-full-badge").classList.toggle("hidden", lot.empty !== false);
-  el("detail-unknown-badge").classList.toggle("hidden", lot.liveOccupancy === true);
+  const unknown = el("detail-unknown-badge");
+  unknown.classList.toggle("hidden", lot.liveOccupancy === true);
+  unknown.textContent = lot.estimatedOccupancy ? "Tahmini doluluk" : "Anlık doluluk verisi yok";
   el("detail-live-badge").classList.toggle("hidden", !lot.liveOccupancy);
 
   renderTariff(lot);

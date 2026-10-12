@@ -16,6 +16,7 @@ const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const MAX_BBOX_KM = 2500;
 const SEARCH_RADIUS_KM = 18;
 const MAP_SEND_MAX = 3000;
+const cityFill = { ispark: 0.539, izmir: 0.506 };
 const TURKEY = { south: 35.8, west: 25.9, north: 42.2, east: 44.9 };
 const OVERPASS_TIMEOUT_MS = 4500;
 const LIVE_TIMEOUT_MS = 2000;
@@ -253,6 +254,39 @@ function mapLot(row, origin) {
     distanceKm,
     distanceLabel: distanceKm == null ? null : `${distanceKm.toFixed(1)} km`,
   };
+}
+
+function applyEstimate(lots) {
+  const seen = { ispark: { occ: 0, cap: 0, n: 0 }, izmir: { occ: 0, cap: 0, n: 0 } };
+  for (const lot of lots) {
+    if (!lot.liveOccupancy || !lot.totalSpots || lot.emptySpots == null) continue;
+    const key = lot.source === "izmir" ? "izmir" : lot.source === "ispark" ? "ispark" : null;
+    if (!key) continue;
+    seen[key].occ += Math.max(0, lot.totalSpots - lot.emptySpots);
+    seen[key].cap += lot.totalSpots;
+    seen[key].n += 1;
+  }
+  for (const key of ["ispark", "izmir"]) {
+    if (seen[key].n >= 5 && seen[key].cap > 0) cityFill[key] = seen[key].occ / seen[key].cap;
+  }
+  const fill = Math.max(cityFill.ispark, cityFill.izmir);
+  const pct = Math.round(fill * 100);
+  for (const lot of lots) {
+    if (lot.liveOccupancy) continue;
+    lot.estimatedOccupancy = true;
+    lot.fillRatio = fill;
+    if (lot.totalSpots) {
+      const empty = Math.max(0, Math.round(lot.totalSpots * (1 - fill)));
+      lot.emptySpots = empty;
+      lot.empty = empty > 0;
+      lot.capacityLabel = `${empty.toLocaleString("tr-TR")} boş / ${lot.totalSpots.toLocaleString("tr-TR")} yer`;
+    } else {
+      lot.empty = fill < 0.97;
+      lot.capacityLabel = `Tahmini %${pct} dolu`;
+    }
+    lot.occupancyNote = `Canlı sayım yok. İstanbul ve İzmir ortalamasının kötüsü: %${pct} dolu`;
+  }
+  return lots;
 }
 
 function dedupe(primary, secondary) {
@@ -533,7 +567,8 @@ async function lotsForBbox(bbox, options = {}) {
         withTimeout(izmir.lotsForBbox(bbox, distance), LIVE_TIMEOUT_MS, []),
       ]);
 
-  const filtered = applyFilters(dedupe(isparkLots.concat(izmirLots), osmLots), {
+  const merged = applyEstimate(dedupe(isparkLots.concat(izmirLots), osmLots));
+  const filtered = applyFilters(merged, {
     ...options,
     limit: options.query ? options.limit : 100000,
   });
