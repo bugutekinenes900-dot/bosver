@@ -80,17 +80,17 @@
         <div class="bg-surface rounded-xl shadow-lg p-4 flex justify-between items-center border border-surface-variant cursor-pointer hidden" id="floating-card">
           <div>
             <h3 class="font-headline-md text-on-surface" id="floating-card-title">—</h3>
-            <div class="flex items-center gap-1 font-label-lg mt-1">
+            <div class="flex items-center gap-1 font-label-lg mt-1" id="floating-card-meta">
               <span class="material-symbols-outlined text-[16px] text-tertiary">check_circle</span>
               <span class="text-tertiary font-bold" id="floating-card-capacity">—</span>
               <span class="text-on-surface-variant ml-2" id="floating-card-distance"></span>
             </div>
-            <div class="flex items-center gap-2 font-label-md mt-1">
+            <div class="flex items-center gap-2 font-label-md mt-1" id="floating-card-price-row">
               <span class="font-bold text-[#1a237e]" id="floating-card-price">—</span>
               <span class="text-on-surface-variant" id="floating-card-source"></span>
             </div>
           </div>
-          <button class="bg-[#1a237e] text-on-primary rounded-full w-12 h-12 flex items-center justify-center shadow-md" onclick="event.stopPropagation(); startNavigation()">
+          <button class="bg-[#1a237e] text-on-primary rounded-full w-12 h-12 flex items-center justify-center shadow-md" id="floating-card-go" onclick="event.stopPropagation(); startNavigation()">
             <span class="material-symbols-outlined">directions</span>
           </button>
         </div>
@@ -428,6 +428,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="/app.js?v=15"></script>
+  <script src="/app.js?v=16"></script>
 </body>
 </html>
