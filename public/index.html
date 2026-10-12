@@ -21,6 +21,8 @@
     .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 16px); }
     #leaflet-map { height: 100%; width: 100%; z-index: 0; }
     .leaflet-control-zoom { margin-top: 210px !important; }
+    .chip-row { overflow-x: auto; scrollbar-width: none; }
+    .chip-row::-webkit-scrollbar { display: none; }
   </style>
   <link rel="stylesheet" href="/tailwind.css">
 </head>
@@ -83,7 +85,7 @@
         <span class="material-symbols-outlined text-on-surface-variant mx-2">search</span>
         <input class="flex-grow bg-transparent border-none focus:ring-0 font-body-md outline-none" id="map-search-input" onfocus="focusSearch()" oninput="syncSearchInputs('map-search-input')" placeholder="Şehir veya otopark ara..." type="text">
       </div>
-      <div class="flex gap-2 overflow-x-auto pb-2">
+      <div class="chip-row flex gap-2">
         <button class="filter-btn bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md" id="filter-indoor" onclick="toggleFilter('indoor')">Kapalı Otopark</button>
         <button class="filter-btn bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md" id="filter-free" onclick="toggleFilter('free')">Ücretsiz</button>
         <button class="filter-btn bg-surface text-on-surface-variant rounded-full px-4 py-1.5 shadow-sm whitespace-nowrap font-label-md" id="filter-outdoor" onclick="toggleFilter('outdoor')">Açık Otopark</button>
