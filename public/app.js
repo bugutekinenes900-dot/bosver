@@ -505,7 +505,7 @@ async function performSearch() {
     el("search-loading").classList.add("hidden");
     el("search-loading").classList.remove("flex");
     if (err.code === "pro_required") {
-      showMapNotice("Arama hakkın bitti", "Harita açık. Yeni arama için Pro gerekir.", "");
+      showMapNotice("Arama hakkın bitti", "Yalnız haritadaki yer durur. Ayrıntı yok.", "");
       setTimeout(hideMapNotice, 7000);
       return;
     }
@@ -746,6 +746,8 @@ async function loadSiteAd() {
 
 function showMapNotice(title, text, extra) {
   showView("view-map");
+  const card = el("floating-card");
+  if (card) card.classList.add("hidden");
   el("ad-gate-title").textContent = title;
   el("ad-gate-text").textContent = text;
   el("ad-countdown").textContent = extra || "";
