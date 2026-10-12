@@ -193,8 +193,7 @@ function renderMarkers() {
     const marker = L.marker([lot.lat, lot.lng], { icon });
     marker.on("click", () => {
       if (quotaLocked()) {
-        showMapNotice("Arama hakkın bitti", "Otoparkın yeri ve ayrıntısı kapalı.", "");
-        setTimeout(hideMapNotice, 6000);
+        showDistanceOnly(lot);
         return;
       }
       state.selectedId = lot.id;
@@ -214,12 +213,28 @@ function quotaLocked() {
   return Boolean(state.quota.locked) || state.quota.used >= 4;
 }
 
+function setCardDetailsVisible(show) {
+  el("floating-card-meta").style.display = show ? "" : "none";
+  el("floating-card-price-row").style.display = show ? "" : "none";
+  el("floating-card-go").style.display = show ? "" : "none";
+}
+
+function showDistanceOnly(lot) {
+  const card = el("floating-card");
+  hideMapNotice();
+  setCardDetailsVisible(false);
+  card.classList.remove("hidden");
+  card.dataset.id = "";
+  el("floating-card-title").textContent = lot.distanceLabel || "Uzaklık yok";
+}
+
 function updateFloatingCard(lot) {
   const card = el("floating-card");
   if (quotaLocked()) {
     card.classList.add("hidden");
     return;
   }
+  setCardDetailsVisible(true);
   if (!lot) {
     card.classList.add("hidden");
     return;
