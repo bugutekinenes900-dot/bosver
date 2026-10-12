@@ -504,8 +504,12 @@ async function performSearch() {
     if (seq !== state.reqSeq) return;
     el("search-loading").classList.add("hidden");
     el("search-loading").classList.remove("flex");
-    if (err.code === "pro_required") showView("view-membership");
-    el("search-results-list").innerHTML = `<p class="text-error text-center py-8">${escapeHtml(err.message)}</p>`;
+    if (err.code === "pro_required") {
+      showMapNotice("Arama hakkın bitti", "Harita açık. Yeni arama için Pro gerekir.", "");
+      setTimeout(hideMapNotice, 7000);
+      return;
+    }
+    showMapNotice("Arama yapılamadı", err.message || "Tekrar dene.", "");
   } finally {
     if (seq === state.reqSeq) setOverlay(false);
   }
@@ -737,10 +741,25 @@ async function loadSiteAd() {
   }
 }
 
+function showMapNotice(title, text, extra) {
+  showView("view-map");
+  el("ad-gate-title").textContent = title;
+  el("ad-gate-text").textContent = text;
+  el("ad-countdown").textContent = extra || "";
+  el("ad-gate").classList.remove("hidden");
+}
+
+function hideMapNotice() {
+  el("ad-gate").classList.add("hidden");
+}
+
 async function showAdGate(info) {
-  const gate = el("ad-gate");
   const countdown = el("ad-countdown");
-  gate.classList.remove("hidden");
+  showMapNotice(
+    "Bu arama için bekle",
+    "Harita açık. Süre bitince arama yapılır.",
+    ""
+  );
   try {
     await api("/api/quota/ad/start", { method: "POST" });
     let left = Math.ceil((info.waitMs || 8000) / 1000);
@@ -758,7 +777,7 @@ async function showAdGate(info) {
       await api("/api/quota/ad/finish", { method: "POST" });
     }
   } finally {
-    gate.classList.add("hidden");
+    hideMapNotice();
   }
 }
 
