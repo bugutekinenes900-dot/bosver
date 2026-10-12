@@ -193,7 +193,7 @@ function renderMarkers() {
     const marker = L.marker([lot.lat, lot.lng], { icon });
     marker.on("click", () => {
       if (quotaLocked()) {
-        showDistanceOnly(lot);
+        showNameAndDistance(lot);
         return;
       }
       state.selectedId = lot.id;
@@ -214,18 +214,27 @@ function quotaLocked() {
 }
 
 function setCardDetailsVisible(show) {
-  el("floating-card-meta").style.display = show ? "" : "none";
+  el("floating-card-meta").style.display = "";
+  el("floating-card-capacity").style.display = "";
+  const icon = el("floating-card-meta").querySelector(".material-symbols-outlined");
+  if (icon) icon.style.display = "";
   el("floating-card-price-row").style.display = show ? "" : "none";
   el("floating-card-go").style.display = show ? "" : "none";
 }
 
-function showDistanceOnly(lot) {
+function showNameAndDistance(lot) {
   const card = el("floating-card");
   hideMapNotice();
-  setCardDetailsVisible(false);
   card.classList.remove("hidden");
   card.dataset.id = "";
-  el("floating-card-title").textContent = lot.distanceLabel || "Uzaklık yok";
+  el("floating-card-title").textContent = lot.name;
+  el("floating-card-meta").style.display = "";
+  el("floating-card-capacity").style.display = "none";
+  const icon = el("floating-card-meta").querySelector(".material-symbols-outlined");
+  if (icon) icon.style.display = "none";
+  el("floating-card-distance").textContent = lot.distanceLabel || "";
+  el("floating-card-price-row").style.display = "none";
+  el("floating-card-go").style.display = "none";
 }
 
 function updateFloatingCard(lot) {
