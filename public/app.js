@@ -192,6 +192,11 @@ function renderMarkers() {
     });
     const marker = L.marker([lot.lat, lot.lng], { icon });
     marker.on("click", () => {
+      if (quotaLocked()) {
+        showMapNotice("Arama hakkın bitti", "Otoparkın yeri ve ayrıntısı kapalı.", "");
+        setTimeout(hideMapNotice, 6000);
+        return;
+      }
       state.selectedId = lot.id;
       updateFloatingCard(lot);
     });
@@ -204,8 +209,17 @@ function renderMarkers() {
   markers.forEach((marker) => state.markersLayer.addLayer(marker));
 }
 
+function quotaLocked() {
+  if (!state.quota || state.quota.unlimited) return false;
+  return Boolean(state.quota.locked) || state.quota.used >= 4;
+}
+
 function updateFloatingCard(lot) {
   const card = el("floating-card");
+  if (quotaLocked()) {
+    card.classList.add("hidden");
+    return;
+  }
   if (!lot) {
     card.classList.add("hidden");
     return;
@@ -253,6 +267,7 @@ function renderTariff(lot) {
 }
 
 function showDetailView(lot) {
+  if (quotaLocked()) return;
   state.selectedId = lot.id;
   el("detail-title").textContent = lot.name;
   el("detail-capacity").textContent = lot.capacityLabel;
@@ -505,7 +520,10 @@ async function performSearch() {
     el("search-loading").classList.add("hidden");
     el("search-loading").classList.remove("flex");
     if (err.code === "pro_required") {
-      showMapNotice("Arama hakkın bitti", "Yalnız haritadaki yer durur. Ayrıntı yok.", "");
+      state.quota = { unlimited: false, used: 4, locked: true, directLeft: 0 };
+      const card = el("floating-card");
+      if (card) card.classList.add("hidden");
+      showMapNotice("Arama hakkın bitti", "Otoparkın yeri ve ayrıntısı kapalı.", "");
       setTimeout(hideMapNotice, 7000);
       return;
     }
@@ -1272,6 +1290,13 @@ async function loadSession() {
     state.tiers = data.tiers || [];
   } catch {
     state.user = null;
+  }
+  try {
+    const tiers = await api("/api/tiers");
+    if (tiers.quota) state.quota = tiers.quota;
+    if (!state.tiers.length && tiers.tiers) state.tiers = tiers.tiers;
+  } catch {
+    /* kota okunamazsa pine basmak açık kalır */
   }
   await loadFavorites();
   await loadSessions();
