@@ -1,7 +1,7 @@
 const os = require("os");
 const path = require("path");
 const express = require("express");
-const { lotsForBbox, lotsForQuery, getLot, MAX_LOTS } = require("./osm");
+const { lotsForBbox, lotsForQuery, getLot, cityCounts, MAX_LOTS } = require("./osm");
 const ispark = require("./ispark");
 const izmir = require("./izmir");
 const auth = require("./auth");
@@ -112,6 +112,16 @@ async function resolveLots(req) {
   const result = await lotsForBbox(bbox, options);
   return { result, options, payload: { center: null, bbox } };
 }
+
+app.get("/api/cities", (req, res) => {
+  const cities = cityCounts().map((city) => ({
+    name: city.name,
+    lat: city.lat,
+    lng: city.lng,
+    count: city.count,
+  }));
+  res.json({ cities, total: cities.reduce((sum, city) => sum + city.count, 0) });
+});
 
 app.get("/api/lots", async (req, res) => {
   const q = (req.query.q || "").trim();

@@ -1,5 +1,6 @@
 const ADANA = { lat: 36.995, lng: 35.324 };
 const MIN_ZOOM = 5;
+const CITY_ZOOM = 10;
 
 const SORT_MODES = [
   { key: "distance", label: "En yakın" },
@@ -380,7 +381,53 @@ function setOverlay(visible, text) {
   overlay.classList.toggle("view-visible", visible);
 }
 
+function cityPin(city) {
+  return `<div class="flex flex-col items-center">
+    <div class="min-w-8 h-8 px-2 bg-[#1a237e] text-white rounded-full flex items-center justify-center border-2 border-white shadow font-bold">${city.count}</div>
+    <div class="mt-0.5 bg-white px-1 rounded text-[11px] font-bold text-[#1a237e]">${escapeHtml(city.name)}</div>
+  </div>`;
+}
+
+function hideCities() {
+  if (state.cityLayer) state.cityLayer.clearLayers();
+}
+
+async function showCities() {
+  if (!state.cityLayer) return;
+  setOverlay(false);
+  state.markersLayer.clearLayers();
+  if (!state.cities) {
+    const res = await fetch("/api/cities");
+    const data = await res.json();
+    state.cities = data.cities || [];
+  }
+  state.cityLayer.clearLayers();
+  for (const city of state.cities) {
+    const icon = L.divIcon({
+      className: "bg-transparent border-0",
+      html: cityPin(city),
+      iconSize: [88, 48],
+      iconAnchor: [44, 16],
+    });
+    const marker = L.marker([city.lat, city.lng], { icon, zIndexOffset: 500 });
+    marker.on("click", () => {
+      state.skipMoveFetch = true;
+      state.map.setView([city.lat, city.lng], CITY_ZOOM);
+      setTimeout(() => {
+        state.skipMoveFetch = false;
+        refreshLots();
+      }, 400);
+    });
+    state.cityLayer.addLayer(marker);
+  }
+}
+
 async function refreshLots() {
+  if (state.map && state.map.getZoom() < CITY_ZOOM) {
+    await showCities();
+    return;
+  }
+  hideCities();
   const seq = ++state.reqSeq;
   const bbox = fetchBbox();
   setOverlay(false);
@@ -1415,6 +1462,7 @@ function initMap() {
       })
     : L.layerGroup()
   ).addTo(state.map);
+  state.cityLayer = L.layerGroup().addTo(state.map);
   state.map.on("moveend", onMapMoved);
 }
 
