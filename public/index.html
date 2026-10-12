@@ -401,17 +401,16 @@
     </a>
   </nav>
 
-  <div class="hidden fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" id="ad-gate">
-    <div class="bg-surface rounded-xl p-container-margin max-w-md w-full flex flex-col gap-md shadow-lg">
-      <h2 class="font-headline-md text-on-surface">Bu arama için reklam</h2>
-      <p class="font-body-md text-on-surface-variant">Süre bitince arama açılır. Bu pencere erken kapanmaz.</p>
-      <div class="min-h-[90px] rounded-lg overflow-hidden" id="ad-slot"></div>
-      <p class="font-headline-md text-[#1a237e] text-center" id="ad-countdown">8 sn</p>
+  <div class="hidden fixed bottom-36 left-3 right-3 z-[80] max-w-md mx-auto" id="ad-gate">
+    <div class="bg-surface rounded-2xl p-4 shadow-lg border border-outline-variant">
+      <h2 class="font-headline-md text-on-surface" id="ad-gate-title">Arama hakkı</h2>
+      <p class="font-body-md text-on-surface-variant mt-1" id="ad-gate-text">Harita açık kalır.</p>
+      <p class="font-headline-md text-[#1a237e] mt-2" id="ad-countdown"></p>
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="/app.js?v=10"></script>
+  <script src="/app.js?v=11"></script>
 </body>
 </html>
