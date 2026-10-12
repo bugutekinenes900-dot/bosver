@@ -23,6 +23,23 @@
     .leaflet-control-zoom { margin-top: 210px !important; }
     body.has-ad #map-sheet { bottom: 10.5rem; }
     body.has-ad #locate-btn { bottom: 16rem; }
+    #ad-gate {
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      bottom: 11.5rem;
+      z-index: 80;
+    }
+    #ad-gate .notice-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 16px 18px;
+      box-shadow: 0 10px 30px rgba(26, 35, 126, 0.16);
+      border: 1px solid #e4e1ea;
+    }
+    #ad-gate h2 { margin: 0; font-size: 18px; line-height: 24px; color: #1a237e; font-weight: 700; }
+    #ad-gate p { margin: 6px 0 0; font-size: 14px; line-height: 20px; color: #454652; }
+    #ad-countdown { color: #1a237e; font-weight: 700; font-size: 16px; }
   </style>
   <link rel="stylesheet" href="/tailwind.css">
 </head>
@@ -401,23 +418,16 @@
     </a>
   </nav>
 
-  <div class="hidden fixed top-24 left-4 right-4 z-[80]" id="ad-gate">
-    <div class="bg-white/95 backdrop-blur-md rounded-3xl px-5 py-4 shadow-[0_16px_40px_rgba(26,35,126,0.18)] border border-white">
-      <div class="flex items-start gap-3">
-        <div class="w-11 h-11 rounded-2xl bg-[#1a237e] text-white flex items-center justify-center shrink-0">
-          <span class="material-symbols-outlined">schedule</span>
-        </div>
-        <div class="min-w-0">
-          <h2 class="text-[18px] font-semibold text-[#1a237e] leading-tight" id="ad-gate-title">Arama hakkı</h2>
-          <p class="text-[14px] text-[#454652] mt-1 leading-snug" id="ad-gate-text">Harita açık kalır.</p>
-        </div>
-      </div>
-      <p class="mt-3 text-[13px] font-semibold tracking-wide text-[#1a237e]" id="ad-countdown"></p>
+  <div class="hidden" id="ad-gate">
+    <div class="notice-card">
+      <h2 id="ad-gate-title">Arama hakkı</h2>
+      <p id="ad-gate-text">Harita açık kalır.</p>
+      <p id="ad-countdown"></p>
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="/app.js?v=13"></script>
+  <script src="/app.js?v=14"></script>
 </body>
 </html>
