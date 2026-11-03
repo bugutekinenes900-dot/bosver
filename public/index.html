@@ -42,10 +42,43 @@
     #ad-gate h2 { margin: 0; font-size: 18px; line-height: 24px; color: #1a237e; font-weight: 700; }
     #ad-gate p { margin: 6px 0 0; font-size: 14px; line-height: 20px; color: #454652; }
     #ad-countdown { color: #1a237e; font-weight: 700; font-size: 16px; }
+    #site-ad {
+      display: none;
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: 5.5rem;
+      z-index: 55;
+      height: 90px;
+      min-height: 90px;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #fff;
+      border: 1px solid #e4e1ea;
+      box-shadow: 0 8px 24px rgba(26, 35, 126, 0.12);
+    }
+    #site-ad.is-visible { display: block; }
+    #site-ad ins.adsbygoogle {
+      display: block;
+      width: 100%;
+      height: 90px;
+      min-height: 90px;
+    }
+    .publisher-blurb {
+      margin: 0;
+      background: #fff;
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-size: 12px;
+      line-height: 16px;
+      color: #454652;
+      box-shadow: 0 4px 12px rgba(26, 35, 126, 0.08);
+    }
+    .publisher-blurb a { color: #1a237e; font-weight: 600; }
   </style>
   <link rel="stylesheet" href="/tailwind.css">
 </head>
-<body class="has-ad bg-background text-on-background h-screen overflow-hidden flex flex-col relative font-body-lg">
+<body class="bg-background text-on-background h-screen overflow-hidden flex flex-col relative font-body-lg">
   <header class="bg-surface text-primary fixed top-0 w-full z-50 shadow-sm flex justify-between items-center px-container-margin h-16">
     <div class="flex items-center gap-2" id="header-logo">
       <img src="/logo.svg" alt="BoŞvEr" class="h-9 w-9" width="36" height="36">
@@ -141,6 +174,12 @@
           <span class="material-symbols-outlined text-[14px]" id="filter-open-now-lock">lock</span>
         </button>
       </div>
+      <p class="publisher-blurb">
+        BoŞvEr, Türkiye’deki otoparkları haritada gösterir. Kayıtlar OpenStreetMap, İSPARK ve İzmir açık verisinden gelir. Doluluk her noktada canlı değildir.
+        <a href="/gizlilik">Gizlilik Politikası</a>
+        ·
+        <a href="/kullanim">Kullanım Şartları</a>
+      </p>
       <div class="hidden rounded-lg bg-[#1a237e] px-3 py-2 font-label-md text-white shadow-md" id="limit-banner"></div>
     </div>
 
@@ -189,8 +228,8 @@
           <p class="font-label-md text-on-surface-variant mt-xs">Çıkışta ücret, kaynaktaki gerçek tarifeye göre tahmin edilir.</p>
         </div>
 
-        <p class="text-on-surface-variant" id="activity-guest">Park geçmişinizi tutmak için giriş yapın. Ücretsiz üyelik yeterli.</p>
-        <p class="text-on-surface-variant hidden" id="activity-empty">Henüz kayıtlı park işlemi yok. Bir otoparkın detayında “Park ettim”e dokunun.</p>
+        <p class="text-on-surface-variant" id="activity-guest">Park geçmişi, giriş yapan hesabın “Park ettim” kayıtlarını tutar. Ücretsiz üyelik yeter. Süre ve tahmini ücret çıkışta burada görünür.</p>
+        <p class="text-on-surface-variant hidden" id="activity-empty">Henüz kayıtlı park işlemi yok. Haritada bir otopark açıp “Park ettim”e dokunun; süre ve tahmini ücret burada listelenir.</p>
         <div class="flex flex-col gap-2" id="activity-list"></div>
       </div>
     </div>
@@ -252,6 +291,15 @@
         <section class="bg-surface rounded-lg border border-outline-variant p-container-margin">
           <h3 class="font-headline-md mb-2">Veri Kaynakları</h3>
           <div class="flex flex-col gap-2 font-body-md text-on-surface-variant" id="profile-sources"></div>
+        </section>
+
+        <section class="bg-surface rounded-lg border border-outline-variant p-container-margin">
+          <h3 class="font-headline-md mb-2">Yasal</h3>
+          <p class="font-body-md text-on-surface-variant mb-2">Hesap, çerez ve reklam bilgisi gizlilik sayfasında. Üyelik ve harita kullanımı şartlar sayfasında.</p>
+          <div class="flex flex-wrap gap-3 font-label-lg">
+            <a class="text-[#1a237e] underline" href="/gizlilik">Gizlilik Politikası</a>
+            <a class="text-[#1a237e] underline" href="/kullanim">Kullanım Şartları</a>
+          </div>
         </section>
       </div>
     </div>
@@ -367,26 +415,9 @@
       </div>
     </div>
 
-    <div class="absolute inset-0 w-full h-full z-30 bg-background view-transition view-hidden flex flex-col" id="view-navigation">
-      <div class="flex-grow relative flex flex-col items-center justify-center p-container-margin text-center">
-        <div class="bg-primary text-white p-6 rounded-full shadow-xl mb-4">
-          <span class="material-symbols-outlined text-3xl">navigation</span>
-        </div>
-        <h2 class="font-headline-lg mb-2" id="nav-destination">Hedef</h2>
-        <p class="text-on-surface-variant max-w-xs" id="nav-hint">Hedefinize doğru ilerleyin.</p>
-      </div>
-      <div class="p-container-margin bg-surface border-t pb-safe">
-        <button class="w-full bg-error text-white py-4 rounded-xl font-bold" onclick="showView('view-map')">Navigasyonu Bitir</button>
-      </div>
-    </div>
   </main>
 
-  <div class="fixed bottom-20 left-3 right-3 z-[55] h-[90px] rounded-2xl bg-surface shadow-lg border border-outline-variant overflow-hidden" id="site-ad">
-    <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-9547556880517148" data-ad-slot="5865371002" data-ad-format="auto" data-full-width-responsive="true"></ins>
-  </div>
-  <script>
-    (adsbygoogle = window.adsbygoogle || []).push({});
-  </script>
+  <div id="site-ad"></div>
   <nav class="bg-surface fixed bottom-0 w-full z-[60] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] flex justify-around items-center h-20 pb-safe">
     <a class="flex flex-col items-center nav-item text-primary" data-target="view-map" href="#" onclick="event.preventDefault(); showView('view-map')">
       <div class="px-4 py-1 rounded-full mb-1 icon-container bg-secondary-container">
@@ -430,6 +461,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-  <script src="/app.js?v=17"></script>
+  <script src="/app.js?v=18"></script>
 </body>
 </html>

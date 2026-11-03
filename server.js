@@ -21,6 +21,14 @@ const { estimateSessionFee, durationLabel } = require("./pricing");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.get("/gizlilik", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "gizlilik.html"));
+});
+
+app.get("/kullanim", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "kullanim.html"));
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
 app.use(auth.attachUser);
@@ -547,6 +555,14 @@ function listenUrls(port) {
   if (!urls.length) urls.push(`http://127.0.0.1:${port}`);
   return [...new Set(urls)];
 }
+
+app.use((req, res) => {
+  if (req.path.startsWith("/api/")) {
+    res.status(404).json({ error: "not_found", message: "Bu adres yok." });
+    return;
+  }
+  res.status(404).sendFile(path.join(__dirname, "public", "404.html"));
+});
 
 if (require.main === module) {
   app.listen(PORT, "0.0.0.0", () => {
