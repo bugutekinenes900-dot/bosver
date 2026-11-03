@@ -39,6 +39,7 @@ const state = {
   watchPrev: new Map(),
   loadedBbox: null,
   quota: null,
+  currentView: "view-map",
 };
 
 const ALERT_POLL_MS = 2 * 60 * 1000;
@@ -459,6 +460,7 @@ async function showCities() {
     });
     state.cityLayer.addLayer(marker);
   }
+  syncSiteAd();
 }
 
 async function refreshLots() {
@@ -481,6 +483,7 @@ async function refreshLots() {
       state.lots.find((lot) => lot.id === state.selectedId) || state.lots[0] || null;
     updateFloatingCard(selected);
     hideGpsMessage();
+    syncSiteAd();
   } catch (err) {
     if (seq !== state.reqSeq) return;
     if (err.code === "bbox_too_large" && !state.lots.length) {
@@ -741,13 +744,14 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function mapHasPublisherContent() {
+  const cityCount = state.cityLayer ? state.cityLayer.getLayers().length : 0;
+  return state.lots.length > 0 || cityCount > 0;
+}
+
 function mountAd(target, client, adSlot) {
-  if (!target) return;
-  target.innerHTML = "";
-  if (!client || !adSlot) {
-    target.textContent = "Reklam";
-    return;
-  }
+  if (!target || target.querySelector("ins.adsbygoogle")) return;
+  if (!client || !adSlot) return;
   if (!document.querySelector("script[data-bosver-adsense]")) {
     const script = document.createElement("script");
     script.async = true;
@@ -756,7 +760,16 @@ function mountAd(target, client, adSlot) {
     script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(client)}`;
     document.head.appendChild(script);
   }
-  target.innerHTML = `<ins class="adsbygoogle" style="display:block" data-ad-client="${escapeHtml(client)}" data-ad-slot="${escapeHtml(adSlot)}" data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+  const ins = document.createElement("ins");
+  ins.className = "adsbygoogle";
+  ins.style.display = "block";
+  ins.style.width = "100%";
+  ins.style.height = "90px";
+  ins.setAttribute("data-ad-client", client);
+  ins.setAttribute("data-ad-slot", adSlot);
+  ins.setAttribute("data-ad-format", "horizontal");
+  ins.setAttribute("data-full-width-responsive", "true");
+  target.appendChild(ins);
   try {
     (window.adsbygoogle = window.adsbygoogle || []).push({});
   } catch {
@@ -764,26 +777,31 @@ function mountAd(target, client, adSlot) {
   }
 }
 
-async function loadSiteAd() {
+async function syncSiteAd() {
   const box = el("site-ad");
   if (!box) return;
-  if (state.user?.tier === "pro") {
-    box.classList.add("hidden");
-    box.innerHTML = "";
-    return;
-  }
+  const show =
+    state.currentView === "view-map" &&
+    state.user?.tier !== "pro" &&
+    mapHasPublisherContent();
+  box.classList.toggle("is-visible", show);
+  document.body.classList.toggle("has-ad", show);
+  if (!show || box.querySelector("ins.adsbygoogle")) return;
+  let client = "ca-pub-9547556880517148";
+  let slot = "5865371002";
   try {
     const res = await fetch("/api/ads");
-    const ads = await res.json();
-    const client = ads.client || "ca-pub-9547556880517148";
-    const slot = ads.slot || "5865371002";
-    box.classList.remove("hidden");
-    document.body.classList.add("has-ad");
-    if (!box.querySelector("ins.adsbygoogle")) mountAd(box, client, slot);
+    if (res.ok) {
+      const ads = await res.json();
+      if (ads.enabled === false) return;
+      if (ads.client) client = ads.client;
+      if (ads.slot) slot = ads.slot;
+    }
   } catch {
-    box.classList.remove("hidden");
-    document.body.classList.add("has-ad");
+    /* kayıtlı reklam birimi kullanılır */
   }
+  if (state.currentView !== "view-map" || state.user?.tier === "pro" || !mapHasPublisherContent()) return;
+  mountAd(box, client, slot);
 }
 
 function showMapNotice(title, text, extra) {
@@ -1304,7 +1322,7 @@ function renderSession() {
   renderFilterLocks();
   renderProfile();
   renderMembership();
-  loadSiteAd();
+  syncSiteAd();
 }
 
 async function loadSession() {
@@ -1358,6 +1376,7 @@ async function loadSources() {
 }
 
 function showView(viewId) {
+  state.currentView = viewId;
   const views = [
     "view-map",
     "view-search",
@@ -1366,7 +1385,6 @@ function showView(viewId) {
     "view-auth",
     "view-membership",
     "view-detail",
-    "view-navigation",
   ];
   views.forEach((id) => {
     const node = el(id);
@@ -1387,7 +1405,9 @@ function showView(viewId) {
   if (viewId === "view-membership") renderMembership();
   if (viewId === "view-activity") loadSessions();
 
-  if (viewId !== "view-detail" && viewId !== "view-navigation") {
+  syncSiteAd();
+
+  if (viewId !== "view-detail") {
     document.querySelectorAll(".nav-item").forEach((nav) => {
       const active = nav.getAttribute("data-target") === viewId;
       nav.classList.toggle("text-primary", active);
